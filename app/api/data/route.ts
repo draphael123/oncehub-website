@@ -15,173 +15,33 @@ interface ScrapingResult {
   error?: string;
 }
 
-// Generate recent tab names dynamically
-function getTabsToTry(): string[] {
-  const tabs: string[] = [];
-  const today = new Date();
+// Generate all possible tab names for a given date
+function generateTabNames(date: Date): string[] {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getFullYear();
   
-  // Try tabs for the past 7 days in various formats
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
-    
-    // Try common time stamps for that day
-    for (const time of ['03:48:30 EST', '03:00:00 EST', '08:00:00 EST', '']) {
-      const suffix = time ? ` ${time}` : '';
-      tabs.push(`Results ${month}-${day}-${year}${suffix}`);
-    }
-    tabs.push(`Results ${year}-${month}-${day}`);
+  const tabs: string[] = [];
+  const baseDate = `${month}-${day}-${year}`;
+  
+  // Try various time suffixes - these are the most common
+  const times = [
+    '03:48:30 EST', '03:48:30 ET', 
+    '03:00:00 EST', '03:00:00 ET',
+    '08:00:00 EST', '08:00:00 ET', '08:00:00 UTC',
+    '04:00:00 EST', '04:00:00 ET',
+    '05:00:00 EST', '05:00:00 ET',
+    ''
+  ];
+  
+  for (const time of times) {
+    tabs.push(time ? `Results ${baseDate} ${time}` : `Results ${baseDate}`);
   }
   
-  // Fallback tabs
-  tabs.push('Daily Summary', 'Summary');
+  // Also try YYYY-MM-DD format
+  tabs.push(`Results ${year}-${month}-${day}`);
   
   return tabs;
-}
-
-async function fetchFromGoogleSheets(): Promise<ScrapingResult[]> {
-  let lastError: Error | null = null;
-  const tabsToTry = getTabsToTry();
-  
-  // Try each tab until one works
-  for (const tabName of tabsToTry) {
-    try {
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
-      const response = await fetch(csvUrl, { cache: 'no-store' });
-      
-      if (!response.ok) continue;
-      
-      const csvText = await response.text();
-      if (!csvText || csvText.length < 100) continue;
-      
-      const rows = parseCSV(csvText);
-      if (rows.length < 2) continue;
-      
-      // Check if this looks like our data (has HRT/TRT/Provider in first column)
-      const hasValidData = rows.some(row => 
-        row[0] && ['HRT', 'TRT', 'Provider'].includes(row[0].trim())
-      );
-      
-      if (!hasValidData) continue;
-      
-      console.log('Successfully fetched from tab:', tabName);
-      return parseResults(rows, tabName);
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      continue;
-    }
-  }
-  
-  // If all tabs fail, try to dynamically find a Results tab
-  try {
-    return await tryDynamicTabSearch();
-  } catch (err) {
-    throw lastError || new Error('No valid data tab found');
-  }
-}
-
-async function tryDynamicTabSearch(): Promise<ScrapingResult[]> {
-  // Generate possible tab names based on recent dates
-  const today = new Date();
-  const possibleTabs: string[] = [];
-  
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
-    
-    // Try different formats
-    possibleTabs.push(`Results ${month}-${day}-${year}`);
-    possibleTabs.push(`Results ${year}-${month}-${day}`);
-  }
-  
-  for (const tabName of possibleTabs) {
-    try {
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
-      const response = await fetch(csvUrl, { cache: 'no-store' });
-      
-      if (!response.ok) continue;
-      
-      const csvText = await response.text();
-      const rows = parseCSV(csvText);
-      
-      const hasValidData = rows.some(row => 
-        row[0] && ['HRT', 'TRT', 'Provider'].includes(row[0].trim())
-      );
-      
-      if (hasValidData) {
-        console.log('Found tab via dynamic search:', tabName);
-        return parseResults(rows, tabName);
-      }
-    } catch {
-      continue;
-    }
-  }
-  
-  throw new Error('Could not find valid Results tab');
-}
-
-function parseResults(rows: string[][], tabName: string): ScrapingResult[] {
-  const results: ScrapingResult[] = [];
-  
-  // Try to extract date from tab name (e.g., "Results 01-11-2026 03:48:30 EST")
-  let tabDate = '';
-  const tabMatch = tabName.match(/(\d{2})-(\d{2})-(\d{4})\s*(\d{2}):(\d{2}):(\d{2})/);
-  if (tabMatch) {
-    const [, month, day, year, hour, min, sec] = tabMatch;
-    tabDate = `${year}-${month}-${day}T${hour}:${min}:${sec}`;
-  }
-  
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    if (!row || row.length < 5) continue;
-    
-    const category = (row[0] || '').trim();
-    const location = (row[1] || '').trim();
-    const name = (row[2] || '').trim();
-    const daysOutRaw = (row[4] || '').trim();
-    const firstAvailable = row[7] ? row[7].trim() : null;
-    const scrapedAtRaw = row[8] ? row[8].trim() : '';
-    const errorCode = row[9] ? row[9].trim() : '';
-    
-    // Skip if not a valid category
-    if (!['HRT', 'TRT', 'Provider'].includes(category)) continue;
-    if (!name) continue;
-    
-    // Parse days out
-    let daysOut = -1;
-    const daysMatch = daysOutRaw.match(/(\d+)/);
-    if (daysMatch) {
-      daysOut = parseInt(daysMatch[1], 10);
-    }
-    
-    // Parse scrapedAt - format: "2026-01-11 03:48:30 ET"
-    let scrapedAt = tabDate;
-    if (scrapedAtRaw) {
-      const dateMatch = scrapedAtRaw.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
-      if (dateMatch) {
-        const [, year, month, day, hour, min, sec] = dateMatch;
-        scrapedAt = `${year}-${month}-${day}T${hour}:${min}:${sec}`;
-      }
-    }
-    
-    results.push({
-      name,
-      type: category,
-      location,
-      daysOutUntilAppointment: daysOut,
-      firstAvailableDate: firstAvailable,
-      scrapedAt: scrapedAt || new Date().toISOString(),
-      error: errorCode || undefined,
-    });
-  }
-  
-  return results;
 }
 
 function parseCSV(csvText: string): string[][] {
@@ -219,6 +79,136 @@ function parseCSV(csvText: string): string[][] {
   return rows;
 }
 
+function parseResults(rows: string[][], tabName: string): ScrapingResult[] {
+  const results: ScrapingResult[] = [];
+  
+  // Try to extract date from tab name
+  let tabDate = '';
+  const tabMatch = tabName.match(/(\d{2})-(\d{2})-(\d{4})\s*(\d{2})?:?(\d{2})?:?(\d{2})?/);
+  if (tabMatch) {
+    const [, month, day, year, hour = '00', min = '00', sec = '00'] = tabMatch;
+    tabDate = `${year}-${month}-${day}T${hour}:${min}:${sec}`;
+  }
+  
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length < 5) continue;
+    
+    const category = (row[0] || '').trim();
+    const location = (row[1] || '').trim();
+    const name = (row[2] || '').trim();
+    const daysOutRaw = (row[4] || '').trim();
+    const firstAvailable = row[7] ? row[7].trim() : null;
+    const scrapedAtRaw = row[8] ? row[8].trim() : '';
+    const errorCode = row[9] ? row[9].trim() : '';
+    
+    // Skip if not a valid category
+    if (!['HRT', 'TRT', 'Provider'].includes(category)) continue;
+    if (!name) continue;
+    
+    // Parse days out
+    let daysOut = -1;
+    const daysMatch = daysOutRaw.match(/(\d+)/);
+    if (daysMatch) {
+      daysOut = parseInt(daysMatch[1], 10);
+    }
+    
+    // Parse scrapedAt
+    let scrapedAt = tabDate;
+    if (scrapedAtRaw) {
+      const dateMatch = scrapedAtRaw.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+      if (dateMatch) {
+        const [, year, month, day, hour, min, sec] = dateMatch;
+        scrapedAt = `${year}-${month}-${day}T${hour}:${min}:${sec}`;
+      }
+    }
+    
+    results.push({
+      name,
+      type: category,
+      location,
+      daysOutUntilAppointment: daysOut,
+      firstAvailableDate: firstAvailable,
+      scrapedAt: scrapedAt || new Date().toISOString(),
+      error: errorCode || undefined,
+    });
+  }
+  
+  return results;
+}
+
+async function fetchTabData(tabName: string): Promise<ScrapingResult[] | null> {
+  try {
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+    const response = await fetch(csvUrl, { cache: 'no-store' });
+    
+    if (!response.ok) return null;
+    
+    const csvText = await response.text();
+    if (!csvText || csvText.length < 50) return null;
+    
+    const rows = parseCSV(csvText);
+    if (rows.length < 2) return null;
+    
+    // Check if valid data exists
+    const hasValidData = rows.some(row => 
+      row[0] && ['HRT', 'TRT', 'Provider'].includes(row[0].trim())
+    );
+    
+    if (!hasValidData) return null;
+    
+    const results = parseResults(rows, tabName);
+    return results.length > 0 ? results : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchFromGoogleSheets(): Promise<ScrapingResult[]> {
+  const today = new Date();
+  
+  // Try today first, then work backwards
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const tabNames = generateTabNames(date);
+    
+    for (const tabName of tabNames) {
+      const results = await fetchTabData(tabName);
+      if (results && results.length > 0) {
+        console.log(`Data API: Found ${results.length} items in tab "${tabName}"`);
+        return results;
+      }
+    }
+  }
+  
+  // Fallback: try common summary tabs
+  const fallbackTabs = ['Daily Summary', 'Summary'];
+  for (const tabName of fallbackTabs) {
+    const results = await fetchTabData(tabName);
+    if (results && results.length > 0) {
+      console.log(`Data API: Found ${results.length} items in fallback tab "${tabName}"`);
+      return results;
+    }
+  }
+  
+  throw new Error('Could not find valid Results tab');
+}
+
+async function fetchDataForDate(dateStr: string): Promise<ScrapingResult[]> {
+  const date = new Date(dateStr);
+  const tabNames = generateTabNames(date);
+  
+  for (const tabName of tabNames) {
+    const results = await fetchTabData(tabName);
+    if (results && results.length > 0) {
+      return results;
+    }
+  }
+  
+  throw new Error(`No data found for date: ${dateStr}`);
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -227,10 +217,8 @@ export async function GET(request: Request) {
     let results: ScrapingResult[];
     
     if (dateParam) {
-      // Fetch data for specific date
       results = await fetchDataForDate(dateParam);
     } else {
-      // Fetch latest data
       results = await fetchFromGoogleSheets();
     }
     
@@ -250,48 +238,11 @@ export async function GET(request: Request) {
       data: sorted,
     });
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('Data API Error:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to fetch data',
       data: [],
     }, { status: 500 });
   }
-}
-
-async function fetchDataForDate(dateStr: string): Promise<ScrapingResult[]> {
-  // Parse the date and try to find matching tab
-  const date = new Date(dateStr);
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const year = date.getFullYear();
-  
-  const possibleTabs = [
-    `Results ${month}-${day}-${year}`,
-    `Results ${year}-${month}-${day}`,
-  ];
-  
-  for (const tabName of possibleTabs) {
-    try {
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
-      const response = await fetch(csvUrl, { cache: 'no-store' });
-      
-      if (!response.ok) continue;
-      
-      const csvText = await response.text();
-      const rows = parseCSV(csvText);
-      
-      const hasValidData = rows.some(row => 
-        row[0] && ['HRT', 'TRT', 'Provider'].includes(row[0].trim())
-      );
-      
-      if (hasValidData) {
-        return parseResults(rows, tabName);
-      }
-    } catch {
-      continue;
-    }
-  }
-  
-  throw new Error(`No data found for date: ${dateStr}`);
 }

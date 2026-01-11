@@ -12,12 +12,6 @@ interface DataItem {
   daysOut: number;
 }
 
-interface DayData {
-  date: string;
-  tabName: string;
-  data: DataItem[];
-}
-
 function parseCSV(csvText: string): string[][] {
   const rows: string[][] = [];
   const lines = csvText.split('\n');
@@ -52,37 +46,24 @@ function parseCSV(csvText: string): string[][] {
   return rows;
 }
 
-function parseRowsToData(rows: string[][]): DataItem[] {
-  return rows.slice(1)
-    .filter(row => row[0] && ['HRT', 'TRT', 'Provider'].includes(row[0].trim()))
-    .map(row => {
-      const daysOutRaw = (row[4] || '').trim();
-      let daysOut = -1;
-      const match = daysOutRaw.match(/(\d+)/);
-      if (match) daysOut = parseInt(match[1], 10);
-      
-      return {
-        name: (row[2] || '').trim(),
-        type: (row[0] || '').trim(),
-        location: (row[1] || '').trim(),
-        daysOut,
-      };
-    })
-    .filter(d => d.name);
-}
-
-// Generate tab names to try for a given date
-function getTabNamesForDate(date: Date): string[] {
+// Generate all tab names to try for a given date
+function generateTabNames(date: Date): string[] {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const year = date.getFullYear();
   
   const tabs: string[] = [];
+  const baseDate = `${month}-${day}-${year}`;
   
-  // Try with various timestamps
-  for (const time of ['03:48:30 EST', '03:48:30 ET', '03:00:00 EST', '08:00:00 EST', '08:00:00 UTC', '']) {
-    const suffix = time ? ` ${time}` : '';
-    tabs.push(`Results ${month}-${day}-${year}${suffix}`);
+  // Try various time suffixes
+  const times = [
+    '03:48:30 EST', '03:48:30 ET', '03:00:00 EST', '03:00:00 ET',
+    '08:00:00 EST', '08:00:00 ET', '08:00:00 UTC',
+    '04:00:00 EST', '04:00:00 ET', ''
+  ];
+  
+  for (const time of times) {
+    tabs.push(time ? `Results ${baseDate} ${time}` : `Results ${baseDate}`);
   }
   
   // Also try YYYY-MM-DD format
@@ -91,11 +72,8 @@ function getTabNamesForDate(date: Date): string[] {
   return tabs;
 }
 
-async function fetchDataForDate(date: Date): Promise<DayData | null> {
-  const tabNames = getTabNamesForDate(date);
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const year = date.getFullYear();
+async function fetchDataForDate(date: Date): Promise<DataItem[] | null> {
+  const tabNames = generateTabNames(date);
   
   for (const tabName of tabNames) {
     try {
@@ -105,22 +83,43 @@ async function fetchDataForDate(date: Date): Promise<DayData | null> {
       if (!response.ok) continue;
       
       const csvText = await response.text();
-      if (!csvText || csvText.length < 100) continue;
+      if (!csvText || csvText.length < 50) continue;
       
       const rows = parseCSV(csvText);
+      
+      // Check if valid data exists
       const hasValidData = rows.some(row => 
         row[0] && ['HRT', 'TRT', 'Provider'].includes(row[0].trim())
       );
       
       if (!hasValidData) continue;
       
-      const data = parseRowsToData(rows);
+      // Parse the rows
+      const data: DataItem[] = [];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const category = (row[0] || '').trim();
+        if (!['HRT', 'TRT', 'Provider'].includes(category)) continue;
+        
+        const name = (row[2] || '').trim();
+        if (!name) continue;
+        
+        const daysOutRaw = (row[4] || '').trim();
+        let daysOut = -1;
+        const match = daysOutRaw.match(/(\d+)/);
+        if (match) daysOut = parseInt(match[1], 10);
+        
+        data.push({
+          name,
+          type: category,
+          location: (row[1] || '').trim(),
+          daysOut,
+        });
+      }
+      
       if (data.length > 0) {
-        return {
-          date: `${year}-${month}-${day}`,
-          tabName,
-          data,
-        };
+        console.log(`Analytics: Found ${data.length} items in tab "${tabName}"`);
+        return data;
       }
     } catch {
       continue;
@@ -130,165 +129,116 @@ async function fetchDataForDate(date: Date): Promise<DayData | null> {
   return null;
 }
 
-async function getHistoricalData(): Promise<DayData[]> {
-  const days: DayData[] = [];
-  const today = new Date();
-  
-  // Fetch data for the past 7 days in parallel
-  const promises = [];
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    promises.push(fetchDataForDate(date));
-  }
-  
-  const results = await Promise.all(promises);
-  
-  for (const result of results) {
-    if (result && result.data.length > 0) {
-      days.push(result);
-    }
-  }
-  
-  return days.sort((a, b) => a.date.localeCompare(b.date));
-}
-
-function analyzeData(historical: DayData[]) {
-  if (historical.length === 0) {
-    return null;
-  }
-  
-  const latest = historical[historical.length - 1];
-  const previous = historical.length > 1 ? historical[historical.length - 2] : null;
-  
-  // Calculate current stats
-  const validData = latest.data.filter(d => d.daysOut >= 0);
-  const currentStats = {
-    totalLinks: latest.data.length,
-    avgWait: validData.length > 0 
-      ? validData.reduce((sum, d) => sum + d.daysOut, 0) / validData.length 
-      : 0,
-    immediate: validData.filter(d => d.daysOut <= 3).length,
-  };
-  
-  // Daily changes
-  const dailyChanges: { name: string; type: string; change: number; current: number; previous: number }[] = [];
-  if (previous) {
-    for (const item of latest.data) {
-      const prevItem = previous.data.find(p => p.name === item.name);
-      if (prevItem && item.daysOut >= 0 && prevItem.daysOut >= 0) {
-        const change = item.daysOut - prevItem.daysOut;
-        if (change !== 0) {
-          dailyChanges.push({
-            name: item.name,
-            type: item.type,
-            change,
-            current: item.daysOut,
-            previous: prevItem.daysOut,
-          });
-        }
-      }
-    }
-  }
-  
-  // Weekly changes
-  const weekAgo = historical.length >= 7 ? historical[0] : null;
-  const weeklyChanges: { name: string; type: string; change: number }[] = [];
-  if (weekAgo) {
-    for (const item of latest.data) {
-      const weekItem = weekAgo.data.find(p => p.name === item.name);
-      if (weekItem && item.daysOut >= 0 && weekItem.daysOut >= 0) {
-        const change = item.daysOut - weekItem.daysOut;
-        if (Math.abs(change) >= 2) {
-          weeklyChanges.push({ name: item.name, type: item.type, change });
-        }
-      }
-    }
-  }
-  
-  // Trend data
-  const trendData = historical.map(day => {
-    const valid = day.data.filter(d => d.daysOut >= 0);
-    const hrt = day.data.filter(d => d.type === 'HRT' && d.daysOut >= 0);
-    const trt = day.data.filter(d => d.type === 'TRT' && d.daysOut >= 0);
-    return {
-      date: day.date,
-      avgWait: valid.length > 0 ? valid.reduce((s, d) => s + d.daysOut, 0) / valid.length : 0,
-      totalLinks: day.data.length,
-      immediate: valid.filter(d => d.daysOut <= 3).length,
-      hrtAvg: hrt.length > 0 ? hrt.reduce((s, d) => s + d.daysOut, 0) / hrt.length : 0,
-      trtAvg: trt.length > 0 ? trt.reduce((s, d) => s + d.daysOut, 0) / trt.length : 0,
-    };
-  });
-  
-  // Best/worst states (HRT + TRT only)
-  const statesOnly = latest.data.filter(d => (d.type === 'HRT' || d.type === 'TRT') && d.daysOut >= 0);
-  const bestStates = [...statesOnly].sort((a, b) => a.daysOut - b.daysOut).slice(0, 10);
-  const worstStates = [...statesOnly].sort((a, b) => b.daysOut - a.daysOut).slice(0, 10);
-  
-  // Regional analysis
-  const regions: Record<string, string[]> = {
-    'West': ['California', 'Oregon', 'Washington', 'Nevada', 'Arizona', 'Utah', 'Colorado', 'New Mexico', 'Montana', 'Idaho', 'Wyoming'],
-    'Midwest': ['Ohio', 'Michigan', 'Indiana', 'Illinois', 'Wisconsin', 'Minnesota', 'Iowa', 'Missouri', 'Nebraska', 'Kansas'],
-    'South': ['Texas', 'Florida', 'Georgia', 'North Carolina', 'Virginia', 'Tennessee', 'Kentucky', 'Maryland', 'South Carolina'],
-    'Northeast': ['New York', 'New Jersey', 'Pennsylvania', 'Massachusetts', 'Connecticut', 'New Hampshire'],
-  };
-  
-  const regionalStats = Object.entries(regions).map(([region, states]) => {
-    const regionData = statesOnly.filter(d => 
-      states.some(s => d.location.includes(s) || d.name.includes(s))
-    );
-    return {
-      region,
-      count: regionData.length,
-      avgWait: regionData.length > 0 
-        ? regionData.reduce((sum, d) => sum + d.daysOut, 0) / regionData.length 
-        : 0,
-    };
-  });
-  
-  return {
-    currentStats,
-    dailyChanges: dailyChanges.sort((a, b) => a.change - b.change),
-    weeklyChanges: weeklyChanges.sort((a, b) => a.change - b.change),
-    trendData,
-    bestStates,
-    worstStates,
-    regionalStats,
-    daysAnalyzed: historical.length,
-    latestDate: latest.date,
-  };
-}
-
 export async function GET() {
   try {
-    const historical = await getHistoricalData();
+    // Try to get today's data
+    const today = new Date();
+    let latestData = await fetchDataForDate(today);
+    let dataDate = today;
     
-    console.log(`Analytics: Found ${historical.length} days of data`);
-    if (historical.length > 0) {
-      console.log(`Latest: ${historical[historical.length - 1].tabName} with ${historical[historical.length - 1].data.length} items`);
+    // If no data today, try yesterday
+    if (!latestData || latestData.length === 0) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      latestData = await fetchDataForDate(yesterday);
+      dataDate = yesterday;
     }
     
-    const analysis = analyzeData(historical);
+    // Try 2 days ago
+    if (!latestData || latestData.length === 0) {
+      const twoDaysAgo = new Date(today);
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      latestData = await fetchDataForDate(twoDaysAgo);
+      dataDate = twoDaysAgo;
+    }
     
-    if (!analysis) {
+    if (!latestData || latestData.length === 0) {
+      console.log('Analytics: No data found for any recent date');
       return NextResponse.json({
         success: false,
-        error: 'No data available for analysis',
+        error: 'No data available',
         currentStats: { totalLinks: 0, avgWait: 0, immediate: 0 },
         bestStates: [],
         worstStates: [],
         regionalStats: [],
         dailyChanges: [],
-        weeklyChanges: [],
         trendData: [],
         daysAnalyzed: 0,
       });
     }
+
+    console.log(`Analytics: Using ${latestData.length} items from ${dataDate.toDateString()}`);
+
+    // Calculate stats from the data
+    const validData = latestData.filter(d => d.daysOut >= 0);
     
+    const currentStats = {
+      totalLinks: latestData.length,
+      avgWait: validData.length > 0 
+        ? validData.reduce((sum, d) => sum + d.daysOut, 0) / validData.length 
+        : 0,
+      immediate: validData.filter(d => d.daysOut <= 3).length,
+    };
+
+    // Get states only (HRT + TRT)
+    const statesOnly = latestData.filter(d => 
+      (d.type === 'HRT' || d.type === 'TRT') && d.daysOut >= 0
+    );
+    
+    // Best (shortest wait) and worst (longest wait) states
+    const sortedBest = [...statesOnly].sort((a, b) => a.daysOut - b.daysOut);
+    const sortedWorst = [...statesOnly].sort((a, b) => b.daysOut - a.daysOut);
+    
+    const bestStates = sortedBest.slice(0, 10).map(d => ({
+      name: d.name,
+      type: d.type,
+      location: d.location,
+      daysOut: d.daysOut,
+    }));
+    
+    const worstStates = sortedWorst.slice(0, 10).map(d => ({
+      name: d.name,
+      type: d.type,
+      location: d.location,
+      daysOut: d.daysOut,
+    }));
+
+    // Regional analysis
+    const regions: Record<string, string[]> = {
+      'West': ['California', 'CA', 'Oregon', 'OR', 'Washington', 'WA', 'Nevada', 'NV', 'Arizona', 'AZ', 'Utah', 'UT', 'Colorado', 'CO', 'New Mexico', 'NM', 'Montana', 'MT', 'Idaho', 'ID', 'Wyoming', 'WY', 'Alaska', 'AK', 'Hawaii', 'HI'],
+      'Midwest': ['Ohio', 'OH', 'Michigan', 'MI', 'Indiana', 'IN', 'Illinois', 'IL', 'Wisconsin', 'WI', 'Minnesota', 'MN', 'Iowa', 'IA', 'Missouri', 'MO', 'Nebraska', 'NE', 'Kansas', 'KS', 'North Dakota', 'ND', 'South Dakota', 'SD'],
+      'South': ['Texas', 'TX', 'Florida', 'FL', 'Georgia', 'GA', 'North Carolina', 'NC', 'Virginia', 'VA', 'Tennessee', 'TN', 'Kentucky', 'KY', 'Alabama', 'AL', 'Mississippi', 'MS', 'Louisiana', 'LA', 'Arkansas', 'AR', 'Oklahoma', 'OK', 'South Carolina', 'SC', 'Maryland', 'MD', 'West Virginia', 'WV', 'Delaware', 'DE', 'DC'],
+      'Northeast': ['New York', 'NY', 'New Jersey', 'NJ', 'Pennsylvania', 'PA', 'Massachusetts', 'MA', 'Connecticut', 'CT', 'New Hampshire', 'NH', 'Vermont', 'VT', 'Maine', 'ME', 'Rhode Island', 'RI'],
+    };
+    
+    const regionalStats = Object.entries(regions).map(([region, keywords]) => {
+      const regionData = statesOnly.filter(d => 
+        keywords.some(kw => 
+          d.location.includes(kw) || 
+          d.name.includes(kw) ||
+          d.location.toLowerCase() === kw.toLowerCase()
+        )
+      );
+      return {
+        region,
+        count: regionData.length,
+        avgWait: regionData.length > 0 
+          ? regionData.reduce((sum, d) => sum + d.daysOut, 0) / regionData.length 
+          : 0,
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      ...analysis,
+      currentStats,
+      bestStates,
+      worstStates,
+      regionalStats,
+      dailyChanges: [],
+      weeklyChanges: [],
+      trendData: [],
+      daysAnalyzed: 1,
+      latestDate: dataDate.toISOString().split('T')[0],
     });
   } catch (error) {
     console.error('Analytics Error:', error);
@@ -300,7 +250,6 @@ export async function GET() {
       worstStates: [],
       regionalStats: [],
       dailyChanges: [],
-      weeklyChanges: [],
       trendData: [],
       daysAnalyzed: 0,
     }, { status: 500 });
