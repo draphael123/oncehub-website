@@ -1,12 +1,22 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { IBM_Plex_Mono, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const mono = IBM_Plex_Mono({ 
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono"
+});
+
+const serif = Source_Serif_4({ 
+  subsets: ["latin"],
+  weight: ["400", "600"],
+  variable: "--font-serif"
+});
 
 export const metadata: Metadata = {
-  title: "OnceHub Availability Report",
-  description: "Real-time availability tracking for OnceHub scheduling links",
+  title: "Fountain Availability",
+  description: "OnceHub scheduling availability tracker",
 };
 
 export default function RootLayout({
@@ -16,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={`${mono.variable} ${serif.variable}`}>{children}</body>
     </html>
   );
 }
