@@ -1,0 +1,103 @@
+name: Daily Email Digest
+
+on:
+  schedule:
+    # Run at 5:15 AM EST (10:15 AM UTC) - after data refresh
+    - cron: '15 10 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Fetch Latest Data
+        id: fetch-data
+        run: |
+          echo "📊 Fetching latest availability data..."
+          
+          DATA=$(curl -s "https://oncehub-website.vercel.app/api/data" --max-time 30)
+          
+          # Extract key stats
+          COUNT=$(echo "$DATA" | jq -r '.count // 0')
+          LAST_UPDATED=$(echo "$DATA" | jq -r '.lastUpdated // "Unknown"')
+          
+          # Get top 5 shortest waits
+          SHORTEST=$(echo "$DATA" | jq -r '.data | map(select(.daysOutUntilAppointment >= 0)) | sort_by(.daysOutUntilAppointment) | .[0:5] | map("\(.name): \(.daysOutUntilAppointment)d") | join("\n")')
+          
+          # Get top 5 longest waits  
+          LONGEST=$(echo "$DATA" | jq -r '.data | map(select(.daysOutUntilAppointment >= 0)) | sort_by(-.daysOutUntilAppointment) | .[0:5] | map("\(.name): \(.daysOutUntilAppointment)d") | join("\n")')
+          
+          # Calculate average
+          AVG=$(echo "$DATA" | jq -r '[.data[] | select(.daysOutUntilAppointment >= 0) | .daysOutUntilAppointment] | add / length | floor')
+          
+          # Count immediate availability
+          IMMEDIATE=$(echo "$DATA" | jq -r '[.data[] | select(.daysOutUntilAppointment >= 0 and .daysOutUntilAppointment <= 3)] | length')
+          
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "last_updated=$LAST_UPDATED" >> $GITHUB_OUTPUT
+          echo "avg=$AVG" >> $GITHUB_OUTPUT
+          echo "immediate=$IMMEDIATE" >> $GITHUB_OUTPUT
+          
+          # Store multiline outputs
+          echo "shortest<<EOF" >> $GITHUB_OUTPUT
+          echo "$SHORTEST" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "longest<<EOF" >> $GITHUB_OUTPUT
+          echo "$LONGEST" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Send Daily Digest Email
+        run: |
+          TODAY=$(date '+%B %d, %Y')
+          
+          curl -s --url "smtps://$SMTP_HOST:465" \
+            --ssl-reqd \
+            --mail-from "$SMTP_FROM" \
+            --mail-rcpt "daniel@fountain.net" \
+            --user "$SMTP_USER:$SMTP_PASSWORD" \
+            -T - <<EOF
+          From: $SMTP_FROM
+          To: daniel@fountain.net
+          Subject: =?UTF-8?B?$(echo -n "📊 Fountain Availability - $TODAY" | base64)?=
+          Content-Type: text/plain; charset=UTF-8
+          
+          FOUNTAIN AVAILABILITY REPORT
+          $TODAY
+          ====================================
+          
+          SUMMARY
+          ------------------------------------
+          Total Links: ${{ steps.fetch-data.outputs.count }}
+          Average Wait: ${{ steps.fetch-data.outputs.avg }} days
+          Immediate (≤3 days): ${{ steps.fetch-data.outputs.immediate }}
+          
+          SHORTEST WAIT TIMES
+          ------------------------------------
+          ${{ steps.fetch-data.outputs.shortest }}
+          
+          LONGEST WAIT TIMES
+          ------------------------------------
+          ${{ steps.fetch-data.outputs.longest }}
+          
+          ------------------------------------
+          View full report: https://oncehub-website.vercel.app
+          Source data: https://docs.google.com/spreadsheets/d/1vOXJEegJHJizatcXErv_dOLuWCiz_z8fGZasSDde2tc
+          
+          Data last updated: ${{ steps.fetch-data.outputs.last_updated }}
+          EOF
+          
+          echo "✅ Daily digest sent to daniel@fountain.net"
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+
+      - name: Log Success
+        run: |
+          echo "📧 Daily digest email sent successfully"
+          echo "Recipients: daniel@fountain.net"
+          echo "Data points: ${{ steps.fetch-data.outputs.count }}"
+
