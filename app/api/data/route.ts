@@ -15,20 +15,39 @@ interface ScrapingResult {
   error?: string;
 }
 
-// Known recent Results tabs - we'll try these in order
-const TABS_TO_TRY = [
-  'Results 01-11-2026 03:48:30 EST',
-  'Results 01-10-2026',
-  'Results 01-09-2026',
-  'Daily Summary',
-  'Summary',
-];
+// Generate recent tab names dynamically
+function getTabsToTry(): string[] {
+  const tabs: string[] = [];
+  const today = new Date();
+  
+  // Try tabs for the past 7 days in various formats
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    // Try common time stamps for that day
+    for (const time of ['03:48:30 EST', '03:00:00 EST', '08:00:00 EST', '']) {
+      const suffix = time ? ` ${time}` : '';
+      tabs.push(`Results ${month}-${day}-${year}${suffix}`);
+    }
+    tabs.push(`Results ${year}-${month}-${day}`);
+  }
+  
+  // Fallback tabs
+  tabs.push('Daily Summary', 'Summary');
+  
+  return tabs;
+}
 
 async function fetchFromGoogleSheets(): Promise<ScrapingResult[]> {
   let lastError: Error | null = null;
+  const tabsToTry = getTabsToTry();
   
   // Try each tab until one works
-  for (const tabName of TABS_TO_TRY) {
+  for (const tabName of tabsToTry) {
     try {
       const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
       const response = await fetch(csvUrl, { cache: 'no-store' });
