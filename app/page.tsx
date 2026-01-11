@@ -453,8 +453,32 @@ export default function Home() {
         )}
       </main>
 
+      {/* Suggestion Box */}
+      <div className="relative max-w-7xl mx-auto px-4 mt-12">
+        <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-2xl p-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-2xl">
+                💡
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Have a Suggestion?</h3>
+                <p className="text-white/60 text-sm">Help us improve this dashboard with your feedback</p>
+              </div>
+            </div>
+            <a
+              href="mailto:daniel@fountain.net?subject=OnceHub%20Dashboard%20Suggestion&body=Hi%2C%0A%0AI%20have%20a%20suggestion%20for%20the%20OnceHub%20dashboard%3A%0A%0A"
+              className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 text-white rounded-xl font-medium transition-all hover:scale-105 shadow-lg shadow-purple-500/25 flex items-center gap-2"
+            >
+              <span>✉️</span>
+              Send Suggestion
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* Footer */}
-      <footer className="relative border-t border-white/10 mt-12">
+      <footer className="relative border-t border-white/10 mt-8">
         <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="text-white/40 text-sm">
             Data refreshed daily at 5 AM EST
