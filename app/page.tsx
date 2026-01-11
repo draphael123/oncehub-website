@@ -314,10 +314,10 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       {/* Masthead */}
-      <header className="border-b-2 border-[var(--text)] print:border-b">
+      <header className="border-b-2 border-[var(--text)] print:border-b bg-gradient-to-b from-white to-[var(--bg)]">
         <div className="max-w-5xl mx-auto px-6 py-6">
           <div className="text-center">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--muted)] mb-2">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--teal)] font-semibold mb-2">
               Fountain Health Services
             </div>
             <h1 className="font-serif text-4xl font-semibold tracking-tight">
@@ -395,7 +395,7 @@ export default function Home() {
         {/* Lead Story */}
         <div className="grid grid-cols-12 gap-8 mb-12 print:grid-cols-1">
           <div className="col-span-8 print:col-span-1">
-            <div className="text-[11px] uppercase tracking-wider text-[var(--accent)] font-semibold mb-2">
+            <div className="text-[11px] uppercase tracking-wider text-[var(--teal)] font-semibold mb-2">
               Quick View
             </div>
             <h2 className="font-serif text-2xl mb-4">Shortest Wait Times</h2>
@@ -403,11 +403,11 @@ export default function Home() {
               {analytics?.bestStates.slice(0, 8).map((s, i) => (
                 <div 
                   key={i} 
-                  className="flex justify-between py-2 border-b border-[var(--border)] cursor-pointer hover:bg-[#f4f3f0]"
+                  className="flex justify-between py-2 border-b border-[var(--border)] cursor-pointer hover:bg-teal-50"
                   onClick={() => setSelectedState(s.name)}
                 >
-                  <span className="hover:text-[var(--accent)]">{s.name}</span>
-                  <span className="tabular-nums font-medium">{s.daysOut}d</span>
+                  <span className="hover:text-[var(--teal)]">{s.name}</span>
+                  <span className="tabular-nums font-medium text-[var(--teal)]">{s.daysOut}d</span>
                 </div>
               ))}
             </div>
@@ -432,13 +432,13 @@ export default function Home() {
 
             {analytics && analytics.regionalStats.length > 0 && (
               <div className="mt-8">
-                <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-2">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--purple)] font-semibold mb-2">
                   By Region
                 </div>
                 {analytics.regionalStats.map((r, i) => (
                   <div key={i} className="flex justify-between py-1 text-[13px]">
                     <span className="text-[var(--muted)]">{r.region}</span>
-                    <span className="tabular-nums">{r.avgWait.toFixed(1)}d</span>
+                    <span className="tabular-nums text-[var(--purple)]">{r.avgWait.toFixed(1)}d</span>
                   </div>
                 ))}
               </div>
@@ -492,9 +492,12 @@ export default function Home() {
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`px-3 py-1 border ${
+                  className={`px-3 py-1 border transition-colors ${
                     view === v 
-                      ? 'bg-[var(--text)] text-[var(--bg)] border-[var(--text)]' 
+                      ? v === 'hrt' ? 'bg-[var(--rose)] text-white border-[var(--rose)]' :
+                        v === 'trt' ? 'bg-[var(--blue)] text-white border-[var(--blue)]' :
+                        v === 'providers' ? 'bg-[var(--purple)] text-white border-[var(--purple)]' :
+                        'bg-[var(--text)] text-[var(--bg)] border-[var(--text)]'
                       : 'border-[var(--border)] hover:border-[var(--text)]'
                   }`}
                 >
@@ -521,11 +524,19 @@ export default function Home() {
                   onClick={() => setSelectedState(item.name)}
                 >
                   <td className="py-2 hover:text-[var(--accent)]">{item.name}</td>
-                  <td className="py-2 text-[var(--muted)] print:hidden">{item.type}</td>
+                  <td className="py-2 print:hidden">
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${
+                      item.type === 'HRT' ? 'bg-rose-100 text-[var(--rose)]' :
+                      item.type === 'TRT' ? 'bg-blue-100 text-[var(--blue)]' :
+                      'bg-purple-100 text-[var(--purple)]'
+                    }`}>
+                      {item.type}
+                    </span>
+                  </td>
                   <td className="py-2 text-[var(--muted)]">{item.location || '—'}</td>
                   <td className={`py-2 text-right tabular-nums font-medium ${
-                    item.daysOutUntilAppointment <= 2 ? 'text-teal-700' :
-                    item.daysOutUntilAppointment >= 7 ? 'text-[var(--accent)]' : ''
+                    item.daysOutUntilAppointment <= 2 ? 'text-[var(--teal)]' :
+                    item.daysOutUntilAppointment >= 7 ? 'text-[var(--rose)]' : ''
                   }`}>
                     {item.daysOutUntilAppointment >= 0 ? `${item.daysOutUntilAppointment}d` : '—'}
                   </td>
