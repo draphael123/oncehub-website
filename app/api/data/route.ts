@@ -15,54 +15,87 @@ interface ScrapingResult {
   error?: string;
 }
 
-async function fetchFromGoogleSheets(): Promise<ScrapingResult[]> {
-  try {
-    // Get list of sheets using the Google Sheets API v4 (public access)
-    const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}?fields=sheets.properties.title&key=`;
-    
-    // Try to fetch sheet names from the published HTML page
-    const publishedUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/pubhtml`;
-    const htmlResponse = await fetch(publishedUrl, { cache: 'no-store' });
-    const html = await htmlResponse.text();
-    
-    // Extract tab names from the HTML - look for "Results" tabs
-    const tabMatches = html.match(/Results[^"<>]*\d{4}-\d{2}-\d{2}/g) || [];
-    const resultsTabs = [...new Set(tabMatches)].sort().reverse();
-    
-    if (resultsTabs.length === 0) {
-      // Fallback: try to find any tab with date pattern
-      const datePattern = /gid=(\d+)[^>]*>([^<]*\d{4}-\d{2}-\d{2}[^<]*)</g;
-      let match;
-      while ((match = datePattern.exec(html)) !== null) {
-        if (match[2].includes('Results')) {
-          resultsTabs.push(match[2].trim());
-        }
-      }
-    }
-    
-    // Use the most recent Results tab, or fall back to a default
-    const latestTab = resultsTabs[0] || 'Results';
-    
-    // Fetch CSV data from the sheet
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(latestTab)}`;
-    const csvResponse = await fetch(csvUrl, { cache: 'no-store' });
-    
-    if (!csvResponse.ok) {
-      throw new Error(`Failed to fetch CSV: ${csvResponse.status}`);
-    }
-    
-    const csvText = await csvResponse.text();
-    const rows = parseCSV(csvText);
-    
-    if (rows.length < 2) {
-      throw new Error('No data rows found');
-    }
-    
-    return parseRowsToResults(rows, latestTab);
-  } catch (error) {
-    console.error('Error fetching from Google Sheets:', error);
-    throw error;
+async function getLatestResultsTab(): Promise<string> {
+  // Fetch the published HTML to find tab names
+  const publishedUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/pubhtml`;
+  const response = await fetch(publishedUrl, { cache: 'no-store' });
+  const html = await response.text();
+  
+  // Look for "Results" tabs with dates - format: "Results MM-DD-YYYY HH:MM:SS" or similar
+  const tabPattern = /Results\s+\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}:\d{2}\s+[A-Z]+/gi;
+  const matches = html.match(tabPattern) || [];
+  
+  if (matches.length > 0) {
+    // Sort to get the most recent (they should be date-sortable)
+    const sorted = [...new Set(matches)].sort().reverse();
+    return sorted[0];
   }
+  
+  // Fallback: try another pattern
+  const altPattern = /Results\s+\d{4}-\d{2}-\d{2}/gi;
+  const altMatches = html.match(altPattern) || [];
+  if (altMatches.length > 0) {
+    return [...new Set(altMatches)].sort().reverse()[0];
+  }
+  
+  throw new Error('No Results tab found');
+}
+
+async function fetchFromGoogleSheets(): Promise<ScrapingResult[]> {
+  // Get the latest results tab name
+  const latestTab = await getLatestResultsTab();
+  console.log('Fetching from tab:', latestTab);
+  
+  // Fetch CSV data
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(latestTab)}`;
+  const response = await fetch(csvUrl, { cache: 'no-store' });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch: ${response.status}`);
+  }
+  
+  const csvText = await response.text();
+  const rows = parseCSV(csvText);
+  
+  // Skip header row, parse data rows
+  const results: ScrapingResult[] = [];
+  
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length < 5) continue;
+    
+    // Columns: Category, Location, Name, URL, Days Out, Score, Change, First Available, Scraped At, Error Code, Error Details
+    const category = (row[0] || '').trim();
+    const location = (row[1] || '').trim();
+    const name = (row[2] || '').trim();
+    const url = (row[3] || '').trim();
+    const daysOutRaw = (row[4] || '').trim();
+    const firstAvailable = (row[7] || '').trim();
+    const scrapedAt = (row[8] || '').trim();
+    const errorCode = (row[9] || '').trim();
+    const errorDetails = (row[10] || '').trim();
+    
+    if (!name || !category) continue;
+    
+    // Parse days out (format: "⚡ 1" or "✅ 3")
+    let daysOut = -1;
+    const daysMatch = daysOutRaw.match(/(\d+)/);
+    if (daysMatch) {
+      daysOut = parseInt(daysMatch[1], 10);
+    }
+    
+    results.push({
+      name,
+      type: category,
+      location,
+      daysOutUntilAppointment: daysOut,
+      firstAvailableDate: firstAvailable || null,
+      scrapedAt: scrapedAt || new Date().toISOString(),
+      error: errorCode || errorDetails || undefined,
+    });
+  }
+  
+  return results;
 }
 
 function parseCSV(csvText: string): string[][] {
@@ -100,77 +133,11 @@ function parseCSV(csvText: string): string[][] {
   return rows;
 }
 
-function parseRowsToResults(rows: string[][], tabName: string): ScrapingResult[] {
-  const headers = rows[0].map(h => (h || '').toLowerCase().trim());
-  
-  const nameIndex = headers.findIndex(h => h.includes('name') && !h.includes('url'));
-  const categoryIndex = headers.findIndex(h => h.includes('category') || h.includes('type'));
-  const locationIndex = headers.findIndex(h => h.includes('location') || h.includes('state'));
-  const daysOutIndex = headers.findIndex(h => h.includes('days') && h.includes('out'));
-  const firstAvailableIndex = headers.findIndex(h => h.includes('first') && h.includes('available'));
-  const errorIndex = headers.findIndex(h => h.includes('error'));
-  
-  // Extract date from tab name
-  const dateMatch = tabName.match(/(\d{4}-\d{2}-\d{2})/);
-  const scrapeDate = dateMatch ? new Date(dateMatch[1]) : new Date();
-  
-  const results: ScrapingResult[] = [];
-  
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    if (!row || row.length === 0) continue;
-    
-    const name = nameIndex >= 0 ? (row[nameIndex] || '').trim() : '';
-    if (!name) continue;
-    
-    const category = categoryIndex >= 0 ? (row[categoryIndex] || '').trim() : '';
-    const location = locationIndex >= 0 ? (row[locationIndex] || '').trim() : '';
-    const daysOutStr = daysOutIndex >= 0 ? (row[daysOutIndex] || '').trim() : '';
-    const firstAvailable = firstAvailableIndex >= 0 ? (row[firstAvailableIndex] || '').trim() : '';
-    const error = errorIndex >= 0 ? (row[errorIndex] || '').trim() : '';
-    
-    // Parse days out
-    let daysOut = -1;
-    if (daysOutStr) {
-      const cleaned = daysOutStr.replace(/[⚡✅❌🟡🔴]/g, '').trim();
-      const parsed = parseInt(cleaned, 10);
-      if (!isNaN(parsed)) {
-        daysOut = parsed;
-      }
-    }
-    
-    // Determine type
-    let type = category || 'Unknown';
-    if (name.startsWith('HRT ')) type = 'HRT';
-    else if (name.startsWith('TRT ')) type = 'TRT';
-    else if (name.startsWith('Provider: ')) type = 'Provider';
-    
-    // Extract location from name if needed
-    let finalLocation = location;
-    if (!finalLocation && (type === 'HRT' || type === 'TRT')) {
-      const match = name.match(/(?:HRT|TRT)\s+(.+)/);
-      if (match) finalLocation = match[1];
-    }
-    
-    results.push({
-      name,
-      type,
-      location: finalLocation,
-      daysOutUntilAppointment: daysOut,
-      firstAvailableDate: firstAvailable || null,
-      scrapedAt: scrapeDate.toISOString(),
-      error: error || undefined,
-    });
-  }
-  
-  return results;
-}
-
 export async function GET() {
   try {
     const results = await fetchFromGoogleSheets();
     
-    // Sort by days out (ascending), with errors at the end
+    // Sort by days out (ascending), errors at end
     const sorted = results.sort((a, b) => {
       if (a.error && !b.error) return 1;
       if (!a.error && b.error) return -1;
@@ -186,6 +153,7 @@ export async function GET() {
       data: sorted,
     });
   } catch (error) {
+    console.error('API Error:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to fetch data',
@@ -193,4 +161,3 @@ export async function GET() {
     }, { status: 500 });
   }
 }
-
