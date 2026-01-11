@@ -110,6 +110,14 @@ async function tryDynamicTabSearch(): Promise<ScrapingResult[]> {
 function parseResults(rows: string[][], tabName: string): ScrapingResult[] {
   const results: ScrapingResult[] = [];
   
+  // Try to extract date from tab name (e.g., "Results 01-11-2026 03:48:30 EST")
+  let tabDate = '';
+  const tabMatch = tabName.match(/(\d{2})-(\d{2})-(\d{4})\s*(\d{2}):(\d{2}):(\d{2})/);
+  if (tabMatch) {
+    const [, month, day, year, hour, min, sec] = tabMatch;
+    tabDate = `${year}-${month}-${day}T${hour}:${min}:${sec}`;
+  }
+  
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length < 5) continue;
@@ -119,7 +127,7 @@ function parseResults(rows: string[][], tabName: string): ScrapingResult[] {
     const name = (row[2] || '').trim();
     const daysOutRaw = (row[4] || '').trim();
     const firstAvailable = row[7] ? row[7].trim() : null;
-    const scrapedAt = row[8] ? row[8].trim() : '';
+    const scrapedAtRaw = row[8] ? row[8].trim() : '';
     const errorCode = row[9] ? row[9].trim() : '';
     
     // Skip if not a valid category
@@ -131,6 +139,16 @@ function parseResults(rows: string[][], tabName: string): ScrapingResult[] {
     const daysMatch = daysOutRaw.match(/(\d+)/);
     if (daysMatch) {
       daysOut = parseInt(daysMatch[1], 10);
+    }
+    
+    // Parse scrapedAt - format: "2026-01-11 03:48:30 ET"
+    let scrapedAt = tabDate;
+    if (scrapedAtRaw) {
+      const dateMatch = scrapedAtRaw.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+      if (dateMatch) {
+        const [, year, month, day, hour, min, sec] = dateMatch;
+        scrapedAt = `${year}-${month}-${day}T${hour}:${min}:${sec}`;
+      }
     }
     
     results.push({

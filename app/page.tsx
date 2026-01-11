@@ -155,14 +155,16 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
-  // Time since update
-  const getTimeSince = () => {
-    if (!lastUpdated) return '';
-    const mins = Math.floor((Date.now() - lastUpdated.getTime()) / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
+  // Format last update time
+  const getLastUpdated = () => {
+    if (!lastUpdated || isNaN(lastUpdated.getTime())) return '';
+    return lastUpdated.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
   };
 
   const timestamp = new Date().toLocaleDateString('en-US', { 
@@ -325,9 +327,9 @@ export default function Home() {
             </h1>
             <div className="text-[11px] text-[var(--muted)] mt-2 tracking-wide flex items-center justify-center gap-3">
               <span>{timestamp}</span>
-              {lastUpdated && (
+              {lastUpdated && !isNaN(lastUpdated.getTime()) && (
                 <span className="bg-[#e8e6e1] px-2 py-0.5 rounded text-[10px]">
-                  Updated {getTimeSince()}
+                  Data from {getLastUpdated()}
                 </span>
               )}
             </div>
