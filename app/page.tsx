@@ -42,6 +42,7 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [showEmailSignup, setShowEmailSignup] = useState(false);
   const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [quickViewMode, setQuickViewMode] = useState<'shortest' | 'longest'>('shortest');
 
   // Available dates from API
   const [availableDates, setAvailableDates] = useState<string[]>([]);
@@ -397,44 +398,85 @@ export default function Home() {
         {/* Lead Story */}
         <div className="grid grid-cols-12 gap-8 mb-12 print:grid-cols-1">
           <div className="col-span-8 print:col-span-1">
-            <div className="text-[11px] uppercase tracking-wider text-[var(--teal)] font-semibold mb-2">
-              Quick View
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-1">
+                  Quick View
+                </div>
+                <h2 className="font-serif text-2xl">
+                  {quickViewMode === 'shortest' ? 'Shortest Wait Times' : 'Longest Wait Times'}
+                </h2>
+              </div>
+              <div className="flex gap-1 text-[12px]">
+                <button
+                  onClick={() => setQuickViewMode('shortest')}
+                  className={`px-3 py-1 border transition-colors ${
+                    quickViewMode === 'shortest'
+                      ? 'bg-[var(--teal)] text-white border-[var(--teal)]'
+                      : 'border-[var(--border)] hover:border-[var(--teal)] text-[var(--muted)]'
+                  }`}
+                >
+                  Shortest
+                </button>
+                <button
+                  onClick={() => setQuickViewMode('longest')}
+                  className={`px-3 py-1 border transition-colors ${
+                    quickViewMode === 'longest'
+                      ? 'bg-[var(--rose)] text-white border-[var(--rose)]'
+                      : 'border-[var(--border)] hover:border-[var(--rose)] text-[var(--muted)]'
+                  }`}
+                >
+                  Longest
+                </button>
+              </div>
             </div>
-            <h2 className="font-serif text-2xl mb-4">Shortest Wait Times</h2>
             <div className="space-y-1">
-              {analytics?.bestStates.slice(0, 8).map((s, i) => (
+              {(quickViewMode === 'shortest' ? analytics?.bestStates : analytics?.worstStates)?.slice(0, 10).map((s, i) => (
                 <div 
                   key={i} 
-                  className="flex justify-between py-2 border-b border-[var(--border)] cursor-pointer hover:bg-teal-50"
+                  className={`flex justify-between py-2 border-b border-[var(--border)] cursor-pointer ${
+                    quickViewMode === 'shortest' ? 'hover:bg-teal-50' : 'hover:bg-rose-50'
+                  }`}
                   onClick={() => setSelectedState(s.name)}
                 >
-                  <span className="hover:text-[var(--teal)]">{s.name}</span>
-                  <span className="tabular-nums font-medium text-[var(--teal)]">{s.daysOut}d</span>
+                  <span className={quickViewMode === 'shortest' ? 'hover:text-[var(--teal)]' : 'hover:text-[var(--rose)]'}>
+                    {s.name}
+                  </span>
+                  <span className={`tabular-nums font-medium ${
+                    quickViewMode === 'shortest' ? 'text-[var(--teal)]' : 'text-[var(--rose)]'
+                  }`}>
+                    {s.daysOut}d
+                  </span>
                 </div>
               ))}
             </div>
           </div>
           
           <div className="col-span-4 border-l border-[var(--border)] pl-8 print:col-span-1 print:border-l-0 print:pl-0">
-            <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-2">
-              Longest Wait
-            </div>
-            <div className="space-y-1">
-              {analytics?.worstStates.slice(0, 5).map((s, i) => (
-                <div 
-                  key={i} 
-                  className="flex justify-between py-2 border-b border-[var(--border)] text-[13px] cursor-pointer hover:bg-[#f4f3f0]"
-                  onClick={() => setSelectedState(s.name)}
-                >
-                  <span className="text-[var(--muted)] hover:text-[var(--accent)]">{s.name}</span>
-                  <span className="tabular-nums">{s.daysOut}d</span>
+            {/* Stats Summary */}
+            <div className="mb-8">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--blue)] font-semibold mb-3">
+                Today&apos;s Stats
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between text-[13px]">
+                  <span className="text-[var(--muted)]">Total Links</span>
+                  <span className="font-semibold">{analytics?.currentStats.totalLinks || 0}</span>
                 </div>
-              ))}
+                <div className="flex justify-between text-[13px]">
+                  <span className="text-[var(--muted)]">Average Wait</span>
+                  <span className="font-semibold">{analytics?.currentStats.avgWait.toFixed(1) || 0}d</span>
+                </div>
+                <div className="flex justify-between text-[13px]">
+                  <span className="text-[var(--muted)]">Immediate (≤3d)</span>
+                  <span className="font-semibold text-[var(--teal)]">{analytics?.currentStats.immediate || 0}</span>
+                </div>
+              </div>
             </div>
 
             {analytics && analytics.regionalStats.length > 0 && (
-              <div className="mt-8">
-                <div className="text-[11px] uppercase tracking-wider text-[var(--purple)] font-semibold mb-2">
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-[var(--purple)] font-semibold mb-3">
                   By Region
                 </div>
                 {analytics.regionalStats.map((r, i) => (
