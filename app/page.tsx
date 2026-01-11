@@ -2,6 +2,16 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 
+// Settings interface
+interface Settings {
+  darkMode: boolean;
+  defaultView: 'summary' | 'hrt' | 'trt' | 'providers';
+  showRegions: boolean;
+  compactMode: boolean;
+  autoRefresh: boolean;
+  refreshInterval: number; // minutes
+}
+
 interface ScrapingResult {
   name: string;
   type: string;
@@ -43,6 +53,56 @@ export default function Home() {
   const [showEmailSignup, setShowEmailSignup] = useState(false);
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [quickViewMode, setQuickViewMode] = useState<'shortest' | 'longest'>('shortest');
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<Settings>({
+    darkMode: false,
+    defaultView: 'summary',
+    showRegions: true,
+    compactMode: false,
+    autoRefresh: false,
+    refreshInterval: 5,
+  });
+
+  // Load settings from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('fountain-settings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setSettings(prev => ({ ...prev, ...parsed }));
+        if (parsed.defaultView) setView(parsed.defaultView);
+      } catch (e) {
+        console.error('Failed to load settings');
+      }
+    }
+  }, []);
+
+  // Save settings to localStorage
+  const updateSettings = (newSettings: Partial<Settings>) => {
+    setSettings(prev => {
+      const updated = { ...prev, ...newSettings };
+      localStorage.setItem('fountain-settings', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Apply dark mode to document
+  useEffect(() => {
+    if (settings.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [settings.darkMode]);
+
+  // Auto-refresh
+  useEffect(() => {
+    if (!settings.autoRefresh) return;
+    const interval = setInterval(() => {
+      window.location.reload();
+    }, settings.refreshInterval * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [settings.autoRefresh, settings.refreshInterval]);
 
   // Available dates from API
   const [availableDates, setAvailableDates] = useState<string[]>([]);
@@ -384,15 +444,121 @@ export default function Home() {
             Print
           </button>
 
-          <a 
-            href="https://docs.google.com/spreadsheets/d/1vOXJEegJHJizatcXErv_dOLuWCiz_z8fGZasSDde2tc/edit"
-            target="_blank"
-            className="ml-auto text-[var(--accent)] hover:underline"
-          >
-            Full Data →
-          </a>
+          <div className="ml-auto flex items-center gap-4">
+            <a 
+              href="https://docs.google.com/spreadsheets/d/1vOXJEegJHJizatcXErv_dOLuWCiz_z8fGZasSDde2tc/edit"
+              target="_blank"
+              className="text-[var(--accent)] hover:underline"
+            >
+              Full Data →
+            </a>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-1.5 hover:bg-[var(--border)] rounded transition-colors"
+              title="Settings"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="border-b border-[var(--border)] bg-white dark:bg-[#1a1a1a] print:hidden">
+          <div className="max-w-5xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">Settings</h3>
+              <button 
+                onClick={() => setShowSettings(false)}
+                className="text-[var(--muted)] hover:text-[var(--text)]"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-[13px]">
+              {/* Dark Mode */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.darkMode}
+                  onChange={(e) => updateSettings({ darkMode: e.target.checked })}
+                  className="w-4 h-4 accent-[var(--accent)]"
+                />
+                <span>Dark Mode</span>
+              </label>
+
+              {/* Compact Mode */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.compactMode}
+                  onChange={(e) => updateSettings({ compactMode: e.target.checked })}
+                  className="w-4 h-4 accent-[var(--accent)]"
+                />
+                <span>Compact View</span>
+              </label>
+
+              {/* Show Regions */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.showRegions}
+                  onChange={(e) => updateSettings({ showRegions: e.target.checked })}
+                  className="w-4 h-4 accent-[var(--accent)]"
+                />
+                <span>Show Regions</span>
+              </label>
+
+              {/* Auto Refresh */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.autoRefresh}
+                  onChange={(e) => updateSettings({ autoRefresh: e.target.checked })}
+                  className="w-4 h-4 accent-[var(--accent)]"
+                />
+                <span>Auto-refresh ({settings.refreshInterval}m)</span>
+              </label>
+
+              {/* Default View */}
+              <div className="flex items-center gap-2">
+                <span className="text-[var(--muted)]">Default:</span>
+                <select
+                  value={settings.defaultView}
+                  onChange={(e) => updateSettings({ defaultView: e.target.value as Settings['defaultView'] })}
+                  className="border border-[var(--border)] px-2 py-1 text-[12px] bg-transparent rounded"
+                >
+                  <option value="summary">All</option>
+                  <option value="hrt">HRT</option>
+                  <option value="trt">TRT</option>
+                  <option value="providers">Providers</option>
+                </select>
+              </div>
+
+              {/* Refresh Interval */}
+              {settings.autoRefresh && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[var(--muted)]">Refresh:</span>
+                  <select
+                    value={settings.refreshInterval}
+                    onChange={(e) => updateSettings({ refreshInterval: parseInt(e.target.value) })}
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-transparent rounded"
+                  >
+                    <option value={1}>1 min</option>
+                    <option value={5}>5 min</option>
+                    <option value={15}>15 min</option>
+                    <option value={30}>30 min</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-5xl mx-auto px-6 py-8">
         {/* Lead Story */}
@@ -474,7 +640,7 @@ export default function Home() {
               </div>
             </div>
 
-            {analytics && analytics.regionalStats.length > 0 && (
+            {settings.showRegions && analytics && analytics.regionalStats.length > 0 && (
               <div>
                 <div className="text-[11px] uppercase tracking-wider text-[var(--purple)] font-semibold mb-3">
                   By Region

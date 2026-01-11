@@ -13,6 +13,65 @@
   --purple: #7c3aed;
 }
 
+/* Dark mode */
+.dark {
+  --bg: #121212;
+  --text: #e8e8e8;
+  --muted: #888888;
+  --border: #333333;
+  --accent: #ef4444;
+  --teal: #2dd4bf;
+  --blue: #60a5fa;
+  --rose: #fb7185;
+  --amber: #fbbf24;
+  --purple: #a78bfa;
+}
+
+.dark body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.dark .bg-white {
+  background: #1a1a1a;
+}
+
+.dark .bg-\[\#f4f3f0\] {
+  background: #1f1f1f;
+}
+
+.dark .border-\[var\(--text\)\] {
+  border-color: var(--border);
+}
+
+.dark .hover\:bg-teal-50:hover {
+  background: rgba(45, 212, 191, 0.1);
+}
+
+.dark .hover\:bg-rose-50:hover {
+  background: rgba(251, 113, 133, 0.1);
+}
+
+.dark .hover\:bg-\[\#f4f3f0\]:hover {
+  background: #252525;
+}
+
+.dark .bg-rose-100 {
+  background: rgba(251, 113, 133, 0.2);
+}
+
+.dark .bg-blue-100 {
+  background: rgba(96, 165, 250, 0.2);
+}
+
+.dark .bg-purple-100 {
+  background: rgba(167, 139, 250, 0.2);
+}
+
+.dark .bg-\[\#e8e6e1\] {
+  background: #333;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
