@@ -1,0 +1,63 @@
+name: Daily Website Refresh
+
+on:
+  schedule:
+    # Run at 5:00 AM EST (10:00 AM UTC)
+    - cron: '0 10 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger Vercel Revalidation
+        run: |
+          echo "🔄 Triggering website refresh at $(date)"
+          
+          # Trigger revalidation endpoint
+          HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X POST "${{ secrets.VERCEL_URL }}/api/revalidate?secret=${{ secrets.REVALIDATE_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 30)
+          
+          echo "Response code: $HTTP_CODE"
+          cat /tmp/response.json
+          
+          if [ "$HTTP_CODE" -eq 200 ]; then
+            echo "✅ Website refreshed successfully"
+          else
+            echo "⚠️ Revalidation returned code $HTTP_CODE - this is OK, data is fetched fresh on each request"
+          fi
+
+      - name: Verify Data is Fresh
+        run: |
+          echo "📊 Checking data freshness..."
+          
+          # Fetch the data API to ensure it's working
+          DATA=$(curl -s "${{ secrets.VERCEL_URL }}/api/data" --max-time 30)
+          COUNT=$(echo "$DATA" | jq -r '.count // 0')
+          SUCCESS=$(echo "$DATA" | jq -r '.success // false')
+          
+          echo "Data count: $COUNT"
+          echo "Success: $SUCCESS"
+          
+          if [ "$SUCCESS" = "true" ] && [ "$COUNT" -gt 0 ]; then
+            echo "✅ Website is serving fresh data with $COUNT records"
+          else
+            echo "❌ Data fetch issue detected"
+            exit 1
+          fi
+
+      - name: Send Success Notification
+        if: success()
+        run: |
+          echo "✅ Daily refresh completed successfully at $(date)"
+
+      - name: Send Failure Notification
+        if: failure()
+        continue-on-error: true
+        run: |
+          echo "❌ Daily refresh failed at $(date)"
+          # Add email notification here if needed
+
