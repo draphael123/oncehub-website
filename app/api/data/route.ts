@@ -182,9 +182,20 @@ function parseCSV(csvText: string): string[][] {
   return rows;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const results = await fetchFromGoogleSheets();
+    const { searchParams } = new URL(request.url);
+    const dateParam = searchParams.get('date');
+    
+    let results: ScrapingResult[];
+    
+    if (dateParam) {
+      // Fetch data for specific date
+      results = await fetchDataForDate(dateParam);
+    } else {
+      // Fetch latest data
+      results = await fetchFromGoogleSheets();
+    }
     
     const sorted = results.sort((a, b) => {
       if (a.error && !b.error) return 1;
@@ -198,6 +209,7 @@ export async function GET() {
       success: true,
       count: sorted.length,
       lastUpdated: sorted[0]?.scrapedAt || new Date().toISOString(),
+      date: dateParam || 'latest',
       data: sorted,
     });
   } catch (error) {
@@ -208,4 +220,41 @@ export async function GET() {
       data: [],
     }, { status: 500 });
   }
+}
+
+async function fetchDataForDate(dateStr: string): Promise<ScrapingResult[]> {
+  // Parse the date and try to find matching tab
+  const date = new Date(dateStr);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getFullYear();
+  
+  const possibleTabs = [
+    `Results ${month}-${day}-${year}`,
+    `Results ${year}-${month}-${day}`,
+  ];
+  
+  for (const tabName of possibleTabs) {
+    try {
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+      const response = await fetch(csvUrl, { cache: 'no-store' });
+      
+      if (!response.ok) continue;
+      
+      const csvText = await response.text();
+      const rows = parseCSV(csvText);
+      
+      const hasValidData = rows.some(row => 
+        row[0] && ['HRT', 'TRT', 'Provider'].includes(row[0].trim())
+      );
+      
+      if (hasValidData) {
+        return parseResults(rows, tabName);
+      }
+    } catch {
+      continue;
+    }
+  }
+  
+  throw new Error(`No data found for date: ${dateStr}`);
 }
