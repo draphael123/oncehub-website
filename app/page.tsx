@@ -43,11 +43,8 @@ export default function Home() {
   const [showEmailSignup, setShowEmailSignup] = useState(false);
   const [selectedState, setSelectedState] = useState<string | null>(null);
 
-  // Available dates from analytics
-  const dates = useMemo(() => 
-    analytics?.trendData?.map(t => t.date) || [], 
-    [analytics]
-  );
+  // Available dates from API
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -76,14 +73,18 @@ export default function Home() {
   useEffect(() => {
     Promise.all([
       fetch('/api/data').then(r => r.json()),
-      fetch('/api/analytics').then(r => r.json())
-    ]).then(([dataRes, analyticsRes]) => {
+      fetch('/api/analytics').then(r => r.json()),
+      fetch('/api/dates').then(r => r.json())
+    ]).then(([dataRes, analyticsRes, datesRes]) => {
       if (dataRes.success) {
         setData(dataRes.data);
         setLastUpdated(new Date(dataRes.lastUpdated));
       }
       if (analyticsRes.success) {
         setAnalytics(analyticsRes);
+      }
+      if (datesRes.success && datesRes.dates) {
+        setAvailableDates(datesRes.dates);
       }
     }).finally(() => setLoading(false));
   }, []);
@@ -254,7 +255,7 @@ export default function Home() {
                 className="border border-[var(--border)] px-3 py-1 text-sm bg-transparent"
               >
                 <option value="">Select date 1</option>
-                {dates.map(d => (
+                {availableDates.map(d => (
                   <option key={d} value={d}>{new Date(d).toLocaleDateString()}</option>
                 ))}
               </select>
@@ -265,7 +266,7 @@ export default function Home() {
                 className="border border-[var(--border)] px-3 py-1 text-sm bg-transparent"
               >
                 <option value="">Select date 2</option>
-                {dates.map(d => (
+                {availableDates.map(d => (
                   <option key={d} value={d}>{new Date(d).toLocaleDateString()}</option>
                 ))}
               </select>
