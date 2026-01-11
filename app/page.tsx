@@ -468,10 +468,10 @@ export default function Home() {
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="border-b border-[var(--border)] bg-white dark:bg-[#1a1a1a] print:hidden">
+        <div className="border-b border-[var(--border)] bg-[#f4f3f0] print:hidden">
           <div className="max-w-5xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Settings</h3>
+              <h3 className="font-semibold text-[var(--text)]">Settings</h3>
               <button 
                 onClick={() => setShowSettings(false)}
                 className="text-[var(--muted)] hover:text-[var(--text)]"
@@ -479,7 +479,7 @@ export default function Home() {
                 ✕
               </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-[13px]">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-[13px] text-[var(--text)]">
               {/* Dark Mode */}
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -526,11 +526,11 @@ export default function Home() {
 
               {/* Default View */}
               <div className="flex items-center gap-2">
-                <span className="text-[var(--muted)]">Default:</span>
+                <span className="text-[#666]">Default:</span>
                 <select
                   value={settings.defaultView}
                   onChange={(e) => updateSettings({ defaultView: e.target.value as Settings['defaultView'] })}
-                  className="border border-[var(--border)] px-2 py-1 text-[12px] bg-transparent rounded"
+                  className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white text-[var(--text)] rounded"
                 >
                   <option value="summary">All</option>
                   <option value="hrt">HRT</option>
@@ -542,11 +542,11 @@ export default function Home() {
               {/* Refresh Interval */}
               {settings.autoRefresh && (
                 <div className="flex items-center gap-2">
-                  <span className="text-[var(--muted)]">Refresh:</span>
+                  <span className="text-[#666]">Refresh:</span>
                   <select
                     value={settings.refreshInterval}
                     onChange={(e) => updateSettings({ refreshInterval: parseInt(e.target.value) })}
-                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-transparent rounded"
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white text-[var(--text)] rounded"
                   >
                     <option value={1}>1 min</option>
                     <option value={5}>5 min</option>
