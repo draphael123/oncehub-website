@@ -15,69 +15,118 @@ interface ScrapingResult {
   error?: string;
 }
 
-async function getLatestResultsTab(): Promise<string> {
-  // Fetch the published HTML to find tab names
-  const publishedUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/pubhtml`;
-  const response = await fetch(publishedUrl, { cache: 'no-store' });
-  const html = await response.text();
-  
-  // Look for "Results" tabs with dates - format: "Results MM-DD-YYYY HH:MM:SS" or similar
-  const tabPattern = /Results\s+\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}:\d{2}\s+[A-Z]+/gi;
-  const matches = html.match(tabPattern) || [];
-  
-  if (matches.length > 0) {
-    // Sort to get the most recent (they should be date-sortable)
-    const sorted = [...new Set(matches)].sort().reverse();
-    return sorted[0];
-  }
-  
-  // Fallback: try another pattern
-  const altPattern = /Results\s+\d{4}-\d{2}-\d{2}/gi;
-  const altMatches = html.match(altPattern) || [];
-  if (altMatches.length > 0) {
-    return [...new Set(altMatches)].sort().reverse()[0];
-  }
-  
-  throw new Error('No Results tab found');
-}
+// Known recent Results tabs - we'll try these in order
+const TABS_TO_TRY = [
+  'Results 01-11-2026 03:48:30 EST',
+  'Results 01-10-2026',
+  'Results 01-09-2026',
+  'Daily Summary',
+  'Summary',
+];
 
 async function fetchFromGoogleSheets(): Promise<ScrapingResult[]> {
-  // Get the latest results tab name
-  const latestTab = await getLatestResultsTab();
-  console.log('Fetching from tab:', latestTab);
+  let lastError: Error | null = null;
   
-  // Fetch CSV data
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(latestTab)}`;
-  const response = await fetch(csvUrl, { cache: 'no-store' });
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch: ${response.status}`);
+  // Try each tab until one works
+  for (const tabName of TABS_TO_TRY) {
+    try {
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+      const response = await fetch(csvUrl, { cache: 'no-store' });
+      
+      if (!response.ok) continue;
+      
+      const csvText = await response.text();
+      if (!csvText || csvText.length < 100) continue;
+      
+      const rows = parseCSV(csvText);
+      if (rows.length < 2) continue;
+      
+      // Check if this looks like our data (has HRT/TRT/Provider in first column)
+      const hasValidData = rows.some(row => 
+        row[0] && ['HRT', 'TRT', 'Provider'].includes(row[0].trim())
+      );
+      
+      if (!hasValidData) continue;
+      
+      console.log('Successfully fetched from tab:', tabName);
+      return parseResults(rows, tabName);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      continue;
+    }
   }
   
-  const csvText = await response.text();
-  const rows = parseCSV(csvText);
+  // If all tabs fail, try to dynamically find a Results tab
+  try {
+    return await tryDynamicTabSearch();
+  } catch (err) {
+    throw lastError || new Error('No valid data tab found');
+  }
+}
+
+async function tryDynamicTabSearch(): Promise<ScrapingResult[]> {
+  // Generate possible tab names based on recent dates
+  const today = new Date();
+  const possibleTabs: string[] = [];
   
-  // Skip header row, parse data rows
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    // Try different formats
+    possibleTabs.push(`Results ${month}-${day}-${year}`);
+    possibleTabs.push(`Results ${year}-${month}-${day}`);
+  }
+  
+  for (const tabName of possibleTabs) {
+    try {
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+      const response = await fetch(csvUrl, { cache: 'no-store' });
+      
+      if (!response.ok) continue;
+      
+      const csvText = await response.text();
+      const rows = parseCSV(csvText);
+      
+      const hasValidData = rows.some(row => 
+        row[0] && ['HRT', 'TRT', 'Provider'].includes(row[0].trim())
+      );
+      
+      if (hasValidData) {
+        console.log('Found tab via dynamic search:', tabName);
+        return parseResults(rows, tabName);
+      }
+    } catch {
+      continue;
+    }
+  }
+  
+  throw new Error('Could not find valid Results tab');
+}
+
+function parseResults(rows: string[][], tabName: string): ScrapingResult[] {
   const results: ScrapingResult[] = [];
   
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length < 5) continue;
     
-    // Columns: Category, Location, Name, URL, Days Out, Score, Change, First Available, Scraped At, Error Code, Error Details
     const category = (row[0] || '').trim();
     const location = (row[1] || '').trim();
     const name = (row[2] || '').trim();
-    const url = (row[3] || '').trim();
     const daysOutRaw = (row[4] || '').trim();
-    const firstAvailable = (row[7] || '').trim();
-    const scrapedAt = (row[8] || '').trim();
-    const errorCode = (row[9] || '').trim();
-    const errorDetails = (row[10] || '').trim();
+    const firstAvailable = row[7] ? row[7].trim() : null;
+    const scrapedAt = row[8] ? row[8].trim() : '';
+    const errorCode = row[9] ? row[9].trim() : '';
     
-    if (!name || !category) continue;
+    // Skip if not a valid category
+    if (!['HRT', 'TRT', 'Provider'].includes(category)) continue;
+    if (!name) continue;
     
-    // Parse days out (format: "⚡ 1" or "✅ 3")
+    // Parse days out
     let daysOut = -1;
     const daysMatch = daysOutRaw.match(/(\d+)/);
     if (daysMatch) {
@@ -89,9 +138,9 @@ async function fetchFromGoogleSheets(): Promise<ScrapingResult[]> {
       type: category,
       location,
       daysOutUntilAppointment: daysOut,
-      firstAvailableDate: firstAvailable || null,
+      firstAvailableDate: firstAvailable,
       scrapedAt: scrapedAt || new Date().toISOString(),
-      error: errorCode || errorDetails || undefined,
+      error: errorCode || undefined,
     });
   }
   
@@ -120,13 +169,13 @@ function parseCSV(csvText: string): string[][] {
           inQuotes = !inQuotes;
         }
       } else if (char === ',' && !inQuotes) {
-        row.push(current.trim());
+        row.push(current);
         current = '';
       } else {
         current += char;
       }
     }
-    row.push(current.trim());
+    row.push(current);
     rows.push(row);
   }
   
@@ -137,7 +186,6 @@ export async function GET() {
   try {
     const results = await fetchFromGoogleSheets();
     
-    // Sort by days out (ascending), errors at end
     const sorted = results.sort((a, b) => {
       if (a.error && !b.error) return 1;
       if (!a.error && b.error) return -1;
