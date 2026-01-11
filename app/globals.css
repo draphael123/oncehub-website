@@ -24,3 +24,28 @@ body {
   background: var(--accent);
   color: white;
 }
+
+/* Mobile */
+@media (max-width: 768px) {
+  body { font-size: 13px; }
+  h1.font-serif { font-size: 1.75rem; }
+  h2.font-serif { font-size: 1.25rem; }
+}
+
+/* Sparkline */
+.sparkline {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 16px;
+  margin-left: 8px;
+}
+.sparkline-bar {
+  width: 3px;
+  background: var(--muted);
+  opacity: 0.4;
+}
+.sparkline-bar:last-child {
+  background: var(--text);
+  opacity: 1;
+}
