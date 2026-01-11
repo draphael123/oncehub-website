@@ -85,15 +85,28 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
       <header className="border-b border-slate-800/50 backdrop-blur-sm bg-slate-950/50 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-            OnceHub Availability Report
-          </h1>
-          {lastUpdated && (
-            <p className="text-slate-400 text-sm mt-1">
-              Last updated: {formatDate(lastUpdated)}
-            </p>
-          )}
+        <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+              OnceHub Availability Report
+            </h1>
+            {lastUpdated && (
+              <p className="text-slate-400 text-sm mt-1">
+                Last updated: {formatDate(lastUpdated)}
+              </p>
+            )}
+          </div>
+          <a 
+            href="https://docs.google.com/spreadsheets/d/1vOXJEegJHJizatcXErv_dOLuWCiz_z8fGZasSDde2tc/edit"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm flex items-center gap-2 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            View Spreadsheet
+          </a>
         </div>
       </header>
 
@@ -218,7 +231,15 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-slate-800/50 mt-auto">
         <div className="max-w-7xl mx-auto px-4 py-6 text-center text-slate-500 text-sm">
-          Data sourced from OnceHub scheduling system
+          <p>Data sourced from OnceHub scheduling system</p>
+          <a 
+            href="https://docs.google.com/spreadsheets/d/1vOXJEegJHJizatcXErv_dOLuWCiz_z8fGZasSDde2tc/edit"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-cyan-400 hover:text-cyan-300 underline mt-2 inline-block"
+          >
+            View Source Spreadsheet →
+          </a>
         </div>
       </footer>
     </div>
