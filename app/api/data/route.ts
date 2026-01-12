@@ -15,8 +15,7 @@ interface ScrapingResult {
   error?: string;
 }
 
-// Generate tab names to try for a given date
-// Uses common scrape times - scrape typically starts at 3 AM and takes ~1 hour
+// Generate tab names to try for a given date (reduced set for speed)
 function generateTabNames(date: Date): string[] {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -25,23 +24,15 @@ function generateTabNames(date: Date): string[] {
   const tabs: string[] = [];
   const baseDate = `${month}-${day}-${year}`;
   
-  // Most common scrape start times (3:00-3:30 AM EST range)
-  const commonTimes = [
-    '03:00', '03:05', '03:10', '03:15', '03:17', '03:20', '03:25', '03:30',
-    '03:35', '03:40', '03:45', '03:48', '03:50', '03:55',
-    '04:00', '04:05', '04:10'
-  ];
+  // Only try the most common times to reduce API calls
+  const commonTimes = ['03:17', '03:30', '03:45', '04:00'];
   
   for (const time of commonTimes) {
-    // Try common second values
-    tabs.push(`Results ${baseDate} ${time}:00 EST`);
     tabs.push(`Results ${baseDate} ${time}:09 EST`);
-    tabs.push(`Results ${baseDate} ${time}:30 EST`);
   }
   
-  // Also try without timestamp and YYYY-MM-DD format
+  // Also try without timestamp
   tabs.push(`Results ${baseDate}`);
-  tabs.push(`Results ${year}-${month}-${day}`);
   
   return tabs;
 }
@@ -154,7 +145,10 @@ function parseResults(rows: string[][], tabName: string): ScrapingResult[] {
 async function fetchTabData(tabName: string): Promise<ScrapingResult[] | null> {
   try {
     const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
-    const response = await fetch(csvUrl, { cache: 'no-store' });
+    const response = await fetch(csvUrl, { 
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
     
     if (!response.ok) return null;
     
@@ -181,8 +175,8 @@ async function fetchTabData(tabName: string): Promise<ScrapingResult[] | null> {
 async function fetchFromGoogleSheets(): Promise<ScrapingResult[]> {
   const today = new Date();
   
-  // Try today first, then work backwards
-  for (let i = 0; i < 7; i++) {
+  // Try today first, then work backwards (only 3 days to speed up)
+  for (let i = 0; i < 3; i++) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
     const tabNames = generateTabNames(date);

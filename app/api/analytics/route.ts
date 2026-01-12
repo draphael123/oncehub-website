@@ -54,7 +54,7 @@ function parseCSV(csvText: string): string[][] {
   return rows;
 }
 
-// Generate tab names to try for a given date
+// Generate only the most likely tab names (reduced set)
 function generateTabNames(date: Date): string[] {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -63,21 +63,14 @@ function generateTabNames(date: Date): string[] {
   const tabs: string[] = [];
   const baseDate = `${month}-${day}-${year}`;
   
-  // Most common scrape start times
-  const commonTimes = [
-    '03:00', '03:05', '03:10', '03:15', '03:17', '03:20', '03:25', '03:30',
-    '03:35', '03:40', '03:45', '03:48', '03:50', '03:55',
-    '04:00', '04:05', '04:10'
-  ];
+  // Only try the most common times to reduce API calls
+  const commonTimes = ['03:17', '03:30', '03:45', '04:00'];
   
   for (const time of commonTimes) {
-    tabs.push(`Results ${baseDate} ${time}:00 EST`);
     tabs.push(`Results ${baseDate} ${time}:09 EST`);
-    tabs.push(`Results ${baseDate} ${time}:30 EST`);
   }
   
   tabs.push(`Results ${baseDate}`);
-  tabs.push(`Results ${year}-${month}-${day}`);
   
   return tabs;
 }
@@ -88,7 +81,10 @@ async function fetchDataForDate(date: Date): Promise<DataItem[] | null> {
   for (const tabName of tabNames) {
     try {
       const csvUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
-      const response = await fetch(csvUrl, { cache: 'no-store' });
+      const response = await fetch(csvUrl, { 
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000) // 5 second timeout per request
+      });
       
       if (!response.ok) continue;
       
@@ -162,29 +158,27 @@ function calculateDayStats(data: DataItem[]): { avgWait: number; hrtAvg: number;
 
 export async function GET() {
   try {
-    // Fetch data for the last 7 days
-    const allDaysData: DayData[] = [];
     const today = new Date();
     
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      
-      const data = await fetchDataForDate(date);
-      if (data && data.length > 0) {
-        const stats = calculateDayStats(data);
-        allDaysData.push({
-          date,
-          data,
-          avgWait: stats.avgWait,
-          hrtAvg: stats.hrtAvg,
-          trtAvg: stats.trtAvg,
-        });
-      }
+    // First, try to get today's data (or yesterday's)
+    let latestData = await fetchDataForDate(today);
+    let dataDate = today;
+    
+    if (!latestData || latestData.length === 0) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      latestData = await fetchDataForDate(yesterday);
+      dataDate = yesterday;
+    }
+    
+    if (!latestData || latestData.length === 0) {
+      const twoDaysAgo = new Date(today);
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      latestData = await fetchDataForDate(twoDaysAgo);
+      dataDate = twoDaysAgo;
     }
 
-    if (allDaysData.length === 0) {
-      console.log('Analytics: No data found for any recent date');
+    if (!latestData || latestData.length === 0) {
       return NextResponse.json({
         success: false,
         error: 'No data available',
@@ -199,15 +193,9 @@ export async function GET() {
       });
     }
 
-    // Latest data (today or most recent)
-    const latestDay = allDaysData[0];
-    const latestData = latestDay.data;
-    const previousDay = allDaysData.length > 1 ? allDaysData[1] : null;
-    const weekAgoDay = allDaysData.length >= 7 ? allDaysData[6] : null;
-
-    console.log(`Analytics: Using ${latestData.length} items from ${latestDay.date.toDateString()}`);
-
-    // Calculate current stats
+    console.log(`Analytics: Found ${latestData.length} items from ${dataDate.toDateString()}`);
+    
+    // Calculate current stats from latest data
     const validData = latestData.filter(d => d.daysOut >= 0);
     
     const currentStats = {
@@ -217,9 +205,6 @@ export async function GET() {
         : 0,
       immediate: validData.filter(d => d.daysOut <= 3).length,
     };
-
-    // Previous day average for headline comparison
-    const previousDayAvg = previousDay ? previousDay.avgWait : undefined;
 
     // Get states only (HRT + TRT)
     const statesOnly = latestData.filter(d => 
@@ -269,56 +254,52 @@ export async function GET() {
       };
     });
 
-    // Daily changes (compare today vs yesterday)
-    const dailyChanges: { name: string; type: string; change: number; current: number; previousValue?: number }[] = [];
-    if (previousDay) {
-      for (const item of latestData) {
-        if (item.daysOut < 0) continue;
-        const prevItem = previousDay.data.find(d => d.name === item.name);
-        if (prevItem && prevItem.daysOut >= 0) {
-          const change = item.daysOut - prevItem.daysOut;
-          if (change !== 0) {
-            dailyChanges.push({
-              name: item.name,
-              type: item.type,
-              change,
-              current: item.daysOut,
-              previousValue: prevItem.daysOut,
-            });
+    // Try to get yesterday's data for comparison (in background, with timeout)
+    let previousDayAvg: number | undefined;
+    let dailyChanges: { name: string; type: string; change: number; current: number; previousValue?: number }[] = [];
+    
+    try {
+      const yesterday = new Date(dataDate);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayData = await fetchDataForDate(yesterday);
+      
+      if (yesterdayData && yesterdayData.length > 0) {
+        const yesterdayValid = yesterdayData.filter(d => d.daysOut >= 0);
+        previousDayAvg = yesterdayValid.length > 0 
+          ? yesterdayValid.reduce((s, d) => s + d.daysOut, 0) / yesterdayValid.length 
+          : undefined;
+        
+        // Calculate daily changes
+        for (const item of latestData) {
+          if (item.daysOut < 0) continue;
+          const prevItem = yesterdayData.find(d => d.name === item.name);
+          if (prevItem && prevItem.daysOut >= 0) {
+            const change = item.daysOut - prevItem.daysOut;
+            if (change !== 0) {
+              dailyChanges.push({
+                name: item.name,
+                type: item.type,
+                change,
+                current: item.daysOut,
+                previousValue: prevItem.daysOut,
+              });
+            }
           }
         }
+        dailyChanges.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
       }
-      // Sort by absolute change
-      dailyChanges.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+    } catch {
+      // Ignore errors fetching previous day
     }
 
-    // Weekly changes (compare today vs 7 days ago)
-    const weeklyChanges: { name: string; type: string; change: number }[] = [];
-    if (weekAgoDay) {
-      for (const item of latestData) {
-        if (item.daysOut < 0) continue;
-        const weekItem = weekAgoDay.data.find(d => d.name === item.name);
-        if (weekItem && weekItem.daysOut >= 0) {
-          const change = item.daysOut - weekItem.daysOut;
-          if (change !== 0) {
-            weeklyChanges.push({
-              name: item.name,
-              type: item.type,
-              change,
-            });
-          }
-        }
-      }
-      weeklyChanges.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
-    }
-
-    // Trend data (reverse so oldest is first)
-    const trendData = allDaysData.reverse().map(day => ({
-      date: day.date.toISOString().split('T')[0],
-      avgWait: day.avgWait,
-      hrtAvg: day.hrtAvg,
-      trtAvg: day.trtAvg,
-    }));
+    // Simple trend data based on what we have
+    const latestStats = calculateDayStats(latestData);
+    const trendData = [{
+      date: dataDate.toISOString().split('T')[0],
+      avgWait: latestStats.avgWait,
+      hrtAvg: latestStats.hrtAvg,
+      trtAvg: latestStats.trtAvg,
+    }];
 
     return NextResponse.json({
       success: true,
@@ -328,10 +309,10 @@ export async function GET() {
       worstStates,
       regionalStats,
       dailyChanges,
-      weeklyChanges,
+      weeklyChanges: [],
       trendData,
-      daysAnalyzed: allDaysData.length,
-      latestDate: latestDay.date.toISOString().split('T')[0],
+      daysAnalyzed: 1,
+      latestDate: dataDate.toISOString().split('T')[0],
     });
   } catch (error) {
     console.error('Analytics Error:', error);
