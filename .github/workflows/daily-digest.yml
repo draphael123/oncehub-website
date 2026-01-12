@@ -101,3 +101,4 @@ jobs:
           echo "Recipients: daniel@fountain.net"
           echo "Data points: ${{ steps.fetch-data.outputs.count }}"
 
+

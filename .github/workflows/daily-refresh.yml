@@ -61,3 +61,4 @@ jobs:
           echo "❌ Daily refresh failed at $(date)"
           # Add email notification here if needed
 
+
