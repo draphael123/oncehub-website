@@ -10,6 +10,17 @@ interface Settings {
   compactMode: boolean;
   autoRefresh: boolean;
   refreshInterval: number;
+  // New settings
+  showTrendChart: boolean;
+  showDistribution: boolean;
+  showComparison: boolean;
+  showAnomalies: boolean;
+  showWeeklyChanges: boolean;
+  immediateThreshold: number;
+  highlightThreshold: number;
+  defaultQuickView: 'shortest' | 'longest';
+  tableDensity: 'compact' | 'normal' | 'spacious';
+  colorBlindMode: boolean;
 }
 
 interface ScrapingResult {
@@ -87,6 +98,17 @@ export default function Home() {
     compactMode: false,
     autoRefresh: false,
     refreshInterval: 5,
+    // New settings defaults
+    showTrendChart: true,
+    showDistribution: true,
+    showComparison: true,
+    showAnomalies: true,
+    showWeeklyChanges: true,
+    immediateThreshold: 3,
+    highlightThreshold: 14,
+    defaultQuickView: 'shortest',
+    tableDensity: 'normal',
+    colorBlindMode: false,
   });
 
   // Load settings from localStorage
@@ -97,6 +119,7 @@ export default function Home() {
         const parsed = JSON.parse(saved);
         setSettings(prev => ({ ...prev, ...parsed }));
         if (parsed.defaultView) setView(parsed.defaultView);
+        if (parsed.defaultQuickView) setQuickViewMode(parsed.defaultQuickView);
       } catch (e) {
         console.error('Failed to load settings');
       }
@@ -263,14 +286,16 @@ export default function Home() {
   // Calculate distribution
   const distribution = useMemo(() => {
     const validData = data.filter(d => d.daysOutUntilAppointment >= 0);
+    const immThresh = settings.immediateThreshold;
+    const highThresh = settings.highlightThreshold;
     return {
-      immediate: validData.filter(d => d.daysOutUntilAppointment <= 3).length,
-      good: validData.filter(d => d.daysOutUntilAppointment > 3 && d.daysOutUntilAppointment <= 7).length,
-      moderate: validData.filter(d => d.daysOutUntilAppointment > 7 && d.daysOutUntilAppointment <= 14).length,
-      long: validData.filter(d => d.daysOutUntilAppointment > 14).length,
+      immediate: validData.filter(d => d.daysOutUntilAppointment <= immThresh).length,
+      good: validData.filter(d => d.daysOutUntilAppointment > immThresh && d.daysOutUntilAppointment <= 7).length,
+      moderate: validData.filter(d => d.daysOutUntilAppointment > 7 && d.daysOutUntilAppointment < highThresh).length,
+      long: validData.filter(d => d.daysOutUntilAppointment >= highThresh).length,
       total: validData.length
     };
-  }, [data]);
+  }, [data, settings.immediateThreshold, settings.highlightThreshold]);
 
   // HRT vs TRT comparison
   const typeComparison = useMemo(() => {
@@ -664,37 +689,193 @@ export default function Home() {
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="border-b border-[var(--border)] bg-[#f4f3f0] print:hidden">
+        <div className="border-b border-[var(--border)] bg-[#f4f3f0] dark:bg-[#1f1f1f] print:hidden">
           <div className="max-w-6xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-[var(--text)]">Settings</h3>
               <button onClick={() => setShowSettings(false)} className="text-[var(--muted)] hover:text-[var(--text)]">✕</button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-[13px] text-[var(--text)]">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" checked={settings.darkMode}
-                  onChange={(e) => updateSettings({ darkMode: e.target.checked })}
-                  className="w-4 h-4 accent-[var(--accent)]" />
-                <span>Dark Mode</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" checked={settings.compactMode}
-                  onChange={(e) => updateSettings({ compactMode: e.target.checked })}
-                  className="w-4 h-4 accent-[var(--accent)]" />
-                <span>Compact View</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" checked={settings.showRegions}
-                  onChange={(e) => updateSettings({ showRegions: e.target.checked })}
-                  className="w-4 h-4 accent-[var(--accent)]" />
-                <span>Show Regions</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" checked={settings.autoRefresh}
-                  onChange={(e) => updateSettings({ autoRefresh: e.target.checked })}
-                  className="w-4 h-4 accent-[var(--accent)]" />
-                <span>Auto-refresh ({settings.refreshInterval}m)</span>
-              </label>
+            
+            {/* Appearance */}
+            <div className="mb-6">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-3">Appearance</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[13px] text-[var(--text)]">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={settings.darkMode}
+                    onChange={(e) => updateSettings({ darkMode: e.target.checked })}
+                    className="w-4 h-4 accent-[var(--accent)]" />
+                  <span>Dark Mode</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={settings.colorBlindMode}
+                    onChange={(e) => updateSettings({ colorBlindMode: e.target.checked })}
+                    className="w-4 h-4 accent-[var(--accent)]" />
+                  <span>Color Blind Mode</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-[var(--muted)]">Density:</span>
+                  <select
+                    value={settings.tableDensity}
+                    onChange={(e) => updateSettings({ tableDensity: e.target.value as Settings['tableDensity'] })}
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded"
+                  >
+                    <option value="compact">Compact</option>
+                    <option value="normal">Normal</option>
+                    <option value="spacious">Spacious</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Dashboard Panels */}
+            <div className="mb-6">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-3">Dashboard Panels</div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-[13px] text-[var(--text)]">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={settings.showTrendChart}
+                    onChange={(e) => updateSettings({ showTrendChart: e.target.checked })}
+                    className="w-4 h-4 accent-[var(--accent)]" />
+                  <span>Trend Chart</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={settings.showDistribution}
+                    onChange={(e) => updateSettings({ showDistribution: e.target.checked })}
+                    className="w-4 h-4 accent-[var(--accent)]" />
+                  <span>Distribution</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={settings.showComparison}
+                    onChange={(e) => updateSettings({ showComparison: e.target.checked })}
+                    className="w-4 h-4 accent-[var(--accent)]" />
+                  <span>HRT vs TRT</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={settings.showAnomalies}
+                    onChange={(e) => updateSettings({ showAnomalies: e.target.checked })}
+                    className="w-4 h-4 accent-[var(--accent)]" />
+                  <span>Anomalies</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={settings.showRegions}
+                    onChange={(e) => updateSettings({ showRegions: e.target.checked })}
+                    className="w-4 h-4 accent-[var(--accent)]" />
+                  <span>Regions</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={settings.showWeeklyChanges}
+                    onChange={(e) => updateSettings({ showWeeklyChanges: e.target.checked })}
+                    className="w-4 h-4 accent-[var(--accent)]" />
+                  <span>Weekly Changes</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Thresholds */}
+            <div className="mb-6">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-3">Thresholds</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[13px] text-[var(--text)]">
+                <div className="flex items-center gap-2">
+                  <span className="text-[var(--muted)]">Immediate:</span>
+                  <select
+                    value={settings.immediateThreshold}
+                    onChange={(e) => updateSettings({ immediateThreshold: parseInt(e.target.value) })}
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded w-20"
+                  >
+                    <option value={1}>≤1 day</option>
+                    <option value={2}>≤2 days</option>
+                    <option value={3}>≤3 days</option>
+                    <option value={5}>≤5 days</option>
+                    <option value={7}>≤7 days</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[var(--muted)]">Long wait:</span>
+                  <select
+                    value={settings.highlightThreshold}
+                    onChange={(e) => updateSettings({ highlightThreshold: parseInt(e.target.value) })}
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded w-20"
+                  >
+                    <option value={7}>≥7 days</option>
+                    <option value={10}>≥10 days</option>
+                    <option value={14}>≥14 days</option>
+                    <option value={21}>≥21 days</option>
+                    <option value={30}>≥30 days</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Defaults */}
+            <div className="mb-6">
+              <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-3">Defaults</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[13px] text-[var(--text)]">
+                <div className="flex items-center gap-2">
+                  <span className="text-[var(--muted)]">View:</span>
+                  <select
+                    value={settings.defaultView}
+                    onChange={(e) => updateSettings({ defaultView: e.target.value as Settings['defaultView'] })}
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded"
+                  >
+                    <option value="summary">All</option>
+                    <option value="hrt">HRT</option>
+                    <option value="trt">TRT</option>
+                    <option value="providers">Providers</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[var(--muted)]">Quick View:</span>
+                  <select
+                    value={settings.defaultQuickView}
+                    onChange={(e) => updateSettings({ defaultQuickView: e.target.value as Settings['defaultQuickView'] })}
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded"
+                  >
+                    <option value="shortest">Shortest Wait</option>
+                    <option value="longest">Longest Wait</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Auto-refresh */}
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-3">Auto-refresh</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[13px] text-[var(--text)]">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={settings.autoRefresh}
+                    onChange={(e) => updateSettings({ autoRefresh: e.target.checked })}
+                    className="w-4 h-4 accent-[var(--accent)]" />
+                  <span>Enable Auto-refresh</span>
+                </label>
+                {settings.autoRefresh && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[var(--muted)]">Interval:</span>
+                    <select
+                      value={settings.refreshInterval}
+                      onChange={(e) => updateSettings({ refreshInterval: parseInt(e.target.value) })}
+                      className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded"
+                    >
+                      <option value={1}>1 min</option>
+                      <option value={5}>5 min</option>
+                      <option value={10}>10 min</option>
+                      <option value={15}>15 min</option>
+                      <option value={30}>30 min</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Reset button */}
+            <div className="mt-6 pt-4 border-t border-[var(--border)]">
+              <button
+                onClick={() => {
+                  localStorage.removeItem('fountain-settings');
+                  window.location.reload();
+                }}
+                className="text-[12px] text-[var(--accent)] hover:underline"
+              >
+                Reset all settings to defaults
+              </button>
             </div>
           </div>
         </div>
@@ -702,7 +883,7 @@ export default function Home() {
 
       <main className="max-w-6xl mx-auto px-6 py-8">
         {/* 7-DAY TREND CHART */}
-        {analytics?.trendData && analytics.trendData.length > 0 && (
+        {settings.showTrendChart && analytics?.trendData && analytics.trendData.length > 0 && (
           <div className="mb-8 p-6 border border-[var(--border)] bg-white dark:bg-[#1a1a1a] rounded-lg">
             <h2 className="font-serif text-xl mb-4">7-Day Trend</h2>
             <div className="h-40 flex items-end gap-1">
@@ -738,61 +919,68 @@ export default function Home() {
         )}
 
         {/* DISTRIBUTION + TYPE COMPARISON + ANOMALIES */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {(settings.showDistribution || settings.showComparison || settings.showAnomalies) && (
+        <div className={`grid grid-cols-1 gap-6 mb-8 ${
+          [settings.showDistribution, settings.showComparison, settings.showAnomalies].filter(Boolean).length === 3 ? 'md:grid-cols-3' :
+          [settings.showDistribution, settings.showComparison, settings.showAnomalies].filter(Boolean).length === 2 ? 'md:grid-cols-2' : ''
+        }`}>
           {/* Wait Time Distribution */}
-          <div className="p-5 border border-[var(--border)] bg-white dark:bg-[#1a1a1a] rounded-lg">
+          {settings.showDistribution && (
+          <div className={`p-5 border border-[var(--border)] bg-white dark:bg-[#1a1a1a] rounded-lg ${settings.colorBlindMode ? 'color-blind' : ''}`}>
             <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-3">
               Wait Time Distribution
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="w-20 text-[12px]">⚡ ≤3 days</div>
+                <div className="w-24 text-[12px]">⚡ ≤{settings.immediateThreshold}d</div>
                 <div className="flex-1 h-5 bg-[var(--border)] rounded overflow-hidden">
-                  <div className="h-full bg-[var(--teal)] transition-all" 
+                  <div className={`h-full bg-[var(--teal)] transition-all ${settings.colorBlindMode ? 'pattern-dots' : ''}`}
                     style={{ width: `${(distribution.immediate / distribution.total) * 100}%` }} />
                 </div>
                 <div className="w-8 text-right text-[12px] font-semibold">{distribution.immediate}</div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-20 text-[12px]">✅ 4-7 days</div>
+                <div className="w-24 text-[12px]">✅ {settings.immediateThreshold + 1}-7d</div>
                 <div className="flex-1 h-5 bg-[var(--border)] rounded overflow-hidden">
-                  <div className="h-full bg-[var(--blue)] transition-all" 
+                  <div className={`h-full bg-[var(--blue)] transition-all ${settings.colorBlindMode ? 'pattern-lines' : ''}`}
                     style={{ width: `${(distribution.good / distribution.total) * 100}%` }} />
                 </div>
                 <div className="w-8 text-right text-[12px] font-semibold">{distribution.good}</div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-20 text-[12px]">⚠️ 8-14 days</div>
+                <div className="w-24 text-[12px]">⚠️ 8-{settings.highlightThreshold - 1}d</div>
                 <div className="flex-1 h-5 bg-[var(--border)] rounded overflow-hidden">
-                  <div className="h-full bg-[var(--amber)] transition-all" 
+                  <div className={`h-full bg-[var(--amber)] transition-all ${settings.colorBlindMode ? 'pattern-cross' : ''}`}
                     style={{ width: `${(distribution.moderate / distribution.total) * 100}%` }} />
                 </div>
                 <div className="w-8 text-right text-[12px] font-semibold">{distribution.moderate}</div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-20 text-[12px]">❌ &gt;14 days</div>
+                <div className="w-24 text-[12px]">❌ ≥{settings.highlightThreshold}d</div>
                 <div className="flex-1 h-5 bg-[var(--border)] rounded overflow-hidden">
-                  <div className="h-full bg-[var(--rose)] transition-all" 
+                  <div className={`h-full bg-[var(--rose)] transition-all ${settings.colorBlindMode ? 'pattern-zigzag' : ''}`}
                     style={{ width: `${(distribution.long / distribution.total) * 100}%` }} />
                 </div>
                 <div className="w-8 text-right text-[12px] font-semibold">{distribution.long}</div>
               </div>
             </div>
           </div>
+          )}
 
           {/* HRT vs TRT Comparison */}
+          {settings.showComparison && (
           <div className="p-5 border border-[var(--border)] bg-white dark:bg-[#1a1a1a] rounded-lg">
             <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-3">
               HRT vs TRT
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-3 bg-rose-50 dark:bg-rose-950/30 rounded">
+              <div className={`text-center p-3 bg-rose-50 dark:bg-rose-950/30 rounded ${settings.colorBlindMode ? 'border-2 border-dashed border-[var(--rose)]' : ''}`}>
                 <div className="text-[11px] text-[var(--rose)] font-semibold mb-1">HRT</div>
                 <div className="text-2xl font-bold tabular-nums">{typeComparison.hrt.avg.toFixed(1)}<span className="text-sm">d avg</span></div>
                 <div className="text-[11px] text-[var(--muted)] mt-1">Best: {typeComparison.hrt.best}d</div>
                 <div className="text-[11px] text-[var(--muted)]">{typeComparison.hrt.count} locations</div>
               </div>
-              <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/30 rounded">
+              <div className={`text-center p-3 bg-blue-50 dark:bg-blue-950/30 rounded ${settings.colorBlindMode ? 'border-2 border-solid border-[var(--blue)]' : ''}`}>
                 <div className="text-[11px] text-[var(--blue)] font-semibold mb-1">TRT</div>
                 <div className="text-2xl font-bold tabular-nums">{typeComparison.trt.avg.toFixed(1)}<span className="text-sm">d avg</span></div>
                 <div className="text-[11px] text-[var(--muted)] mt-1">Best: {typeComparison.trt.best}d</div>
@@ -800,8 +988,10 @@ export default function Home() {
               </div>
             </div>
           </div>
+          )}
 
           {/* Anomalies */}
+          {settings.showAnomalies && (
           <div className="p-5 border border-[var(--border)] bg-white dark:bg-[#1a1a1a] rounded-lg">
             <div className="text-[11px] uppercase tracking-wider text-[var(--amber)] font-semibold mb-3">
               ⚠️ Significant Changes
@@ -824,7 +1014,9 @@ export default function Home() {
               </div>
             )}
           </div>
+          )}
         </div>
+        )}
 
         {/* QUICK VIEW + STATS */}
         <div className="grid grid-cols-12 gap-8 mb-12 print:grid-cols-1">
@@ -897,7 +1089,7 @@ export default function Home() {
             )}
 
             {/* Week-over-Week */}
-            {analytics?.weeklyChanges && analytics.weeklyChanges.length > 0 && (
+            {settings.showWeeklyChanges && analytics?.weeklyChanges && analytics.weeklyChanges.length > 0 && (
               <div className="mt-8 pt-4 border-t border-[var(--border)]">
                 <div className="text-[11px] uppercase tracking-wider text-[var(--amber)] font-semibold mb-3">Week-over-Week</div>
                 {analytics.weeklyChanges.slice(0, 5).map((c, i) => (
@@ -981,19 +1173,34 @@ export default function Home() {
             </div>
           </div>
 
-          <table className="w-full text-[13px]">
+          <table className={`w-full ${
+            settings.tableDensity === 'compact' ? 'text-[12px]' :
+            settings.tableDensity === 'spacious' ? 'text-[14px]' : 'text-[13px]'
+          }`}>
             <thead>
               <tr className="border-b-2 border-[var(--text)] text-left">
-                <th className="py-2 font-semibold cursor-pointer hover:text-[var(--accent)]" onClick={() => handleSort('name')}>
+                <th className={`font-semibold cursor-pointer hover:text-[var(--accent)] ${
+                  settings.tableDensity === 'compact' ? 'py-1' :
+                  settings.tableDensity === 'spacious' ? 'py-3' : 'py-2'
+                }`} onClick={() => handleSort('name')}>
                   Name {sortBy === 'name' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="py-2 font-semibold w-20 print:hidden cursor-pointer hover:text-[var(--accent)]" onClick={() => handleSort('type')}>
+                <th className={`font-semibold w-20 print:hidden cursor-pointer hover:text-[var(--accent)] ${
+                  settings.tableDensity === 'compact' ? 'py-1' :
+                  settings.tableDensity === 'spacious' ? 'py-3' : 'py-2'
+                }`} onClick={() => handleSort('type')}>
                   Type {sortBy === 'type' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="py-2 font-semibold cursor-pointer hover:text-[var(--accent)]" onClick={() => handleSort('location')}>
+                <th className={`font-semibold cursor-pointer hover:text-[var(--accent)] ${
+                  settings.tableDensity === 'compact' ? 'py-1' :
+                  settings.tableDensity === 'spacious' ? 'py-3' : 'py-2'
+                }`} onClick={() => handleSort('location')}>
                   Location {sortBy === 'location' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="py-2 font-semibold text-right w-24 cursor-pointer hover:text-[var(--accent)]" onClick={() => handleSort('wait')}>
+                <th className={`font-semibold text-right w-24 cursor-pointer hover:text-[var(--accent)] ${
+                  settings.tableDensity === 'compact' ? 'py-1' :
+                  settings.tableDensity === 'spacious' ? 'py-3' : 'py-2'
+                }`} onClick={() => handleSort('wait')}>
                   Wait {sortBy === 'wait' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
               </tr>
@@ -1002,22 +1209,34 @@ export default function Home() {
               {filtered.map((item, i) => (
                 <tr key={i} className="border-b border-[var(--border)] hover:bg-[#f4f3f0] dark:hover:bg-[#252525] cursor-pointer"
                   onClick={() => setSelectedState(item.name)}>
-                  <td className="py-2 hover:text-[var(--accent)]">
+                  <td className={`hover:text-[var(--accent)] ${
+                    settings.tableDensity === 'compact' ? 'py-1' :
+                    settings.tableDensity === 'spacious' ? 'py-3' : 'py-2'
+                  }`}>
                     {item.name}
                     {item.history && <Sparkline values={item.history} />}
                   </td>
-                  <td className="py-2 print:hidden">
+                  <td className={`print:hidden ${
+                    settings.tableDensity === 'compact' ? 'py-1' :
+                    settings.tableDensity === 'spacious' ? 'py-3' : 'py-2'
+                  }`}>
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${
                       item.type === 'HRT' ? 'bg-rose-100 dark:bg-rose-950/50 text-[var(--rose)]' :
                       item.type === 'TRT' ? 'bg-blue-100 dark:bg-blue-950/50 text-[var(--blue)]' :
                       'bg-purple-100 dark:bg-purple-950/50 text-[var(--purple)]'
-                    }`}>{item.type}</span>
+                    } ${settings.colorBlindMode ? (item.type === 'HRT' ? 'border border-dashed' : 'border border-solid') : ''}`}>{item.type}</span>
                   </td>
-                  <td className="py-2 text-[var(--muted)]">{item.location || '—'}</td>
-                  <td className={`py-2 text-right tabular-nums font-medium ${
-                    item.daysOutUntilAppointment <= 3 ? 'text-[var(--teal)]' :
+                  <td className={`text-[var(--muted)] ${
+                    settings.tableDensity === 'compact' ? 'py-1' :
+                    settings.tableDensity === 'spacious' ? 'py-3' : 'py-2'
+                  }`}>{item.location || '—'}</td>
+                  <td className={`text-right tabular-nums font-medium ${
+                    settings.tableDensity === 'compact' ? 'py-1' :
+                    settings.tableDensity === 'spacious' ? 'py-3' : 'py-2'
+                  } ${
+                    item.daysOutUntilAppointment <= settings.immediateThreshold ? 'text-[var(--teal)]' :
                     item.daysOutUntilAppointment <= 7 ? 'text-[var(--blue)]' :
-                    item.daysOutUntilAppointment <= 14 ? 'text-[var(--amber)]' :
+                    item.daysOutUntilAppointment < settings.highlightThreshold ? 'text-[var(--amber)]' :
                     'text-[var(--rose)]'
                   }`}>
                     {item.daysOutUntilAppointment >= 0 ? `${item.daysOutUntilAppointment}d` : '—'}
