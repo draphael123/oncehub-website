@@ -109,6 +109,9 @@ async function fetchDataForDate(date: Date): Promise<DataItem[] | null> {
         // Skip dashboard/summary rows - these have numeric data like "22 (100.0%)"
         if (/^\d+\s*\([\d.]+%\)$/.test(name)) continue;
         
+        // Skip excluded names
+        if (name.toLowerCase().includes('daniel raphael')) continue;
+        
         // Require valid oncehub.com URL in column 3
         const url = (row[3] || '').trim();
         if (!url.includes('oncehub.com')) continue;

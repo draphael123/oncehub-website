@@ -113,6 +113,9 @@ function parseResults(rows: string[][], tabName: string): ScrapingResult[] {
     // Dashboard rows have names like "22 (100.0%)"
     if (/^\d+\s*\([\d.]+%\)$/.test(name)) continue;
     
+    // Skip excluded names
+    if (name.toLowerCase().includes('daniel raphael')) continue;
+    
     // Valid results should have a URL in column 3
     const url = (row[3] || '').trim();
     if (!url.includes('oncehub.com')) continue;
