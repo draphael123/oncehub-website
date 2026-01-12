@@ -16,6 +16,7 @@ function generateTabNames(date: Date): string[] {
   
   // Try various time suffixes
   const times = [
+    '03:17:09 EST', '03:17:09 ET',
     '03:48:30 EST', '03:48:30 ET', '03:00:00 EST', '03:00:00 ET',
     '08:00:00 EST', '08:00:00 ET', '08:00:00 UTC',
     '04:00:00 EST', '04:00:00 ET', ''
@@ -42,8 +43,8 @@ async function checkDateHasData(date: Date): Promise<boolean> {
       if (!response.ok) continue;
       
       const text = await response.text();
-      // Check if it has actual data
-      if (text.includes('HRT') || text.includes('TRT') || text.includes('Provider')) {
+      // Check if it has actual data (must have oncehub.com URLs, not dashboard summary)
+      if (text.includes('oncehub.com') && (text.includes('HRT') || text.includes('TRT') || text.includes('Provider'))) {
         return true;
       }
     } catch {

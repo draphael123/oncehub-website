@@ -26,6 +26,7 @@ function generateTabNames(date: Date): string[] {
   
   // Try various time suffixes - these are the most common
   const times = [
+    '03:17:09 EST', '03:17:09 ET',
     '03:48:30 EST', '03:48:30 ET', 
     '03:00:00 EST', '03:00:00 ET',
     '08:00:00 EST', '08:00:00 ET', '08:00:00 UTC',

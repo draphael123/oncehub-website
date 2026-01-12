@@ -57,6 +57,7 @@ function generateTabNames(date: Date): string[] {
   
   // Try various time suffixes
   const times = [
+    '03:17:09 EST', '03:17:09 ET',
     '03:48:30 EST', '03:48:30 ET', '03:00:00 EST', '03:00:00 ET',
     '08:00:00 EST', '08:00:00 ET', '08:00:00 UTC',
     '04:00:00 EST', '04:00:00 ET', ''
@@ -103,6 +104,13 @@ async function fetchDataForDate(date: Date): Promise<DataItem[] | null> {
         
         const name = (row[2] || '').trim();
         if (!name) continue;
+        
+        // Skip dashboard/summary rows - these have numeric data like "22 (100.0%)"
+        if (/^\d+\s*\([\d.]+%\)$/.test(name)) continue;
+        
+        // Require valid oncehub.com URL in column 3
+        const url = (row[3] || '').trim();
+        if (!url.includes('oncehub.com')) continue;
         
         const daysOutRaw = (row[4] || '').trim();
         let daysOut = -1;
