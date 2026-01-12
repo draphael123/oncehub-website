@@ -46,8 +46,7 @@ function parseCSV(csvText: string): string[][] {
   return rows;
 }
 
-// Generate all tab names to try for a given date
-// Covers the full scrape window (3-5 AM EST) with minute-level granularity
+// Generate tab names to try for a given date
 function generateTabNames(date: Date): string[] {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -56,19 +55,19 @@ function generateTabNames(date: Date): string[] {
   const tabs: string[] = [];
   const baseDate = `${month}-${day}-${year}`;
   
-  // Generate timestamps for the typical scrape window (3:00 AM - 5:00 AM EST)
-  for (let hour = 3; hour <= 5; hour++) {
-    for (let minute = 0; minute < 60; minute += 5) {
-      const h = String(hour).padStart(2, '0');
-      const m = String(minute).padStart(2, '0');
-      for (const sec of ['00', '09', '30', '42']) {
-        tabs.push(`Results ${baseDate} ${h}:${m}:${sec} EST`);
-        tabs.push(`Results ${baseDate} ${h}:${m}:${sec} ET`);
-      }
-    }
+  // Most common scrape start times
+  const commonTimes = [
+    '03:00', '03:05', '03:10', '03:15', '03:17', '03:20', '03:25', '03:30',
+    '03:35', '03:40', '03:45', '03:48', '03:50', '03:55',
+    '04:00', '04:05', '04:10'
+  ];
+  
+  for (const time of commonTimes) {
+    tabs.push(`Results ${baseDate} ${time}:00 EST`);
+    tabs.push(`Results ${baseDate} ${time}:09 EST`);
+    tabs.push(`Results ${baseDate} ${time}:30 EST`);
   }
   
-  // Also try without timestamp and YYYY-MM-DD format
   tabs.push(`Results ${baseDate}`);
   tabs.push(`Results ${year}-${month}-${day}`);
   
