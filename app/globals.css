@@ -11,20 +11,22 @@
   --rose: #e11d48;
   --amber: #d97706;
   --purple: #7c3aed;
+  --card-bg: #ffffff;
 }
 
 /* Dark mode */
 .dark {
-  --bg: #121212;
-  --text: #e8e8e8;
-  --muted: #888888;
-  --border: #333333;
-  --accent: #ef4444;
-  --teal: #2dd4bf;
-  --blue: #60a5fa;
-  --rose: #fb7185;
-  --amber: #fbbf24;
-  --purple: #a78bfa;
+  --bg: #0f0f0f;
+  --text: #f5f5f5;
+  --muted: #a0a0a0;
+  --border: #3a3a3a;
+  --accent: #f87171;
+  --teal: #5eead4;
+  --blue: #93c5fd;
+  --rose: #fda4af;
+  --amber: #fcd34d;
+  --purple: #c4b5fd;
+  --card-bg: #1e1e1e;
 }
 
 .dark body {
@@ -32,44 +34,81 @@
   color: var(--text);
 }
 
+/* Dark mode card backgrounds */
 .dark .bg-white {
-  background: #1a1a1a;
+  background: var(--card-bg) !important;
+}
+
+.dark .dark\:bg-\[#1a1a1a\] {
+  background: var(--card-bg) !important;
 }
 
 .dark .bg-\[\#f4f3f0\] {
-  background: #1f1f1f;
+  background: #1a1a1a;
 }
 
 .dark .border-\[var\(--text\)\] {
   border-color: var(--border);
 }
 
+/* Dark mode hover states */
 .dark .hover\:bg-teal-50:hover {
-  background: rgba(45, 212, 191, 0.1);
+  background: rgba(94, 234, 212, 0.15) !important;
 }
 
 .dark .hover\:bg-rose-50:hover {
-  background: rgba(251, 113, 133, 0.1);
+  background: rgba(253, 164, 175, 0.15) !important;
 }
 
 .dark .hover\:bg-\[\#f4f3f0\]:hover {
-  background: #252525;
+  background: #2a2a2a !important;
 }
 
+/* Dark mode colored backgrounds */
 .dark .bg-rose-100 {
-  background: rgba(251, 113, 133, 0.2);
+  background: rgba(253, 164, 175, 0.2) !important;
 }
 
 .dark .bg-blue-100 {
-  background: rgba(96, 165, 250, 0.2);
+  background: rgba(147, 197, 253, 0.2) !important;
 }
 
 .dark .bg-purple-100 {
-  background: rgba(167, 139, 250, 0.2);
+  background: rgba(196, 181, 253, 0.2) !important;
+}
+
+.dark .bg-rose-50 {
+  background: rgba(253, 164, 175, 0.1) !important;
+}
+
+.dark .bg-blue-50 {
+  background: rgba(147, 197, 253, 0.1) !important;
 }
 
 .dark .bg-\[\#e8e6e1\] {
-  background: #333;
+  background: #2a2a2a;
+}
+
+/* Dark mode text fixes */
+.dark .text-teal-700 {
+  color: var(--teal) !important;
+}
+
+.dark .text-rose-700 {
+  color: var(--rose) !important;
+}
+
+/* Ensure all text in dark mode is readable */
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  color: var(--text);
+}
+
+.dark p, .dark span, .dark div {
+  color: inherit;
+}
+
+.dark .font-semibold, .dark .font-bold {
+  color: var(--text);
 }
 
 body {
@@ -146,5 +185,30 @@ body {
 /* Settings panel styles */
 .dark select {
   color: var(--text);
-  background-color: #1a1a1a;
+  background-color: var(--card-bg);
+  border-color: var(--border);
+}
+
+.dark select option {
+  background-color: var(--card-bg);
+  color: var(--text);
+}
+
+.dark input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+/* Dark mode specific overrides for panels */
+.dark .rounded-lg {
+  border-color: var(--border);
+}
+
+/* Ensure numbers are visible */
+.dark .tabular-nums {
+  color: inherit;
+}
+
+/* Fix gradient backgrounds */
+.dark .bg-gradient-to-b {
+  background: linear-gradient(to bottom, var(--card-bg), var(--bg)) !important;
 }

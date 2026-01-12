@@ -764,7 +764,7 @@ export default function Home() {
                   <select
                     value={settings.tableDensity}
                     onChange={(e) => updateSettings({ tableDensity: e.target.value as Settings['tableDensity'] })}
-                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded"
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#252525] rounded"
                   >
                     <option value="compact">Compact</option>
                     <option value="normal">Normal</option>
@@ -826,7 +826,7 @@ export default function Home() {
                   <select
                     value={settings.immediateThreshold}
                     onChange={(e) => updateSettings({ immediateThreshold: parseInt(e.target.value) })}
-                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded w-20"
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#252525] rounded w-20"
                   >
                     <option value={1}>≤1 day</option>
                     <option value={2}>≤2 days</option>
@@ -840,7 +840,7 @@ export default function Home() {
                   <select
                     value={settings.highlightThreshold}
                     onChange={(e) => updateSettings({ highlightThreshold: parseInt(e.target.value) })}
-                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded w-20"
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#252525] rounded w-20"
                   >
                     <option value={7}>≥7 days</option>
                     <option value={10}>≥10 days</option>
@@ -861,7 +861,7 @@ export default function Home() {
                   <select
                     value={settings.defaultView}
                     onChange={(e) => updateSettings({ defaultView: e.target.value as Settings['defaultView'] })}
-                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded"
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#252525] rounded"
                   >
                     <option value="summary">All</option>
                     <option value="hrt">HRT</option>
@@ -874,7 +874,7 @@ export default function Home() {
                   <select
                     value={settings.defaultQuickView}
                     onChange={(e) => updateSettings({ defaultQuickView: e.target.value as Settings['defaultQuickView'] })}
-                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded"
+                    className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#252525] rounded"
                   >
                     <option value="shortest">Shortest Wait</option>
                     <option value="longest">Longest Wait</option>
@@ -899,7 +899,7 @@ export default function Home() {
                     <select
                       value={settings.refreshInterval}
                       onChange={(e) => updateSettings({ refreshInterval: parseInt(e.target.value) })}
-                      className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#1a1a1a] rounded"
+                      className="border border-[var(--border)] px-2 py-1 text-[12px] bg-white dark:bg-[#252525] rounded"
                     >
                       <option value={1}>1 min</option>
                       <option value={5}>5 min</option>
@@ -931,8 +931,8 @@ export default function Home() {
       <main className="max-w-6xl mx-auto px-6 py-8">
         {/* 7-DAY TREND CHART */}
         {settings.showTrendChart && analytics?.trendData && analytics.trendData.length > 0 && (
-          <div className="mb-8 p-6 border border-[var(--border)] bg-white dark:bg-[#1a1a1a] rounded-lg">
-            <h2 className="font-serif text-xl mb-4">7-Day Trend</h2>
+          <div className="mb-8 p-6 border border-[var(--border)] bg-white dark:bg-[#252525] rounded-lg">
+            <h2 className="font-serif text-xl mb-4 text-[var(--text)]">7-Day Trend</h2>
             <div className="h-40 flex items-end gap-1">
               {analytics.trendData.map((point, i) => {
                 const max = Math.max(...analytics.trendData.map(p => Math.max(p.hrtAvg, p.trtAvg, p.avgWait)), 1);
@@ -973,42 +973,42 @@ export default function Home() {
         }`}>
           {/* Wait Time Distribution */}
           {settings.showDistribution && (
-          <div className={`p-5 border border-[var(--border)] bg-white dark:bg-[#1a1a1a] rounded-lg ${settings.colorBlindMode ? 'color-blind' : ''}`}>
+          <div className={`p-5 border border-[var(--border)] bg-white dark:bg-[#252525] rounded-lg ${settings.colorBlindMode ? 'color-blind' : ''}`}>
             <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-3">
               Wait Time Distribution
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="w-24 text-[12px]">⚡ ≤{settings.immediateThreshold}d</div>
+                <div className="w-24 text-[12px] text-[var(--text)]">⚡ ≤{settings.immediateThreshold}d</div>
                 <div className="flex-1 h-5 bg-[var(--border)] rounded overflow-hidden">
                   <div className={`h-full bg-[var(--teal)] transition-all ${settings.colorBlindMode ? 'pattern-dots' : ''}`}
                     style={{ width: `${(distribution.immediate / distribution.total) * 100}%` }} />
                 </div>
-                <div className="w-8 text-right text-[12px] font-semibold">{distribution.immediate}</div>
+                <div className="w-8 text-right text-[12px] font-semibold text-[var(--text)]">{distribution.immediate}</div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-24 text-[12px]">✅ {settings.immediateThreshold + 1}-7d</div>
+                <div className="w-24 text-[12px] text-[var(--text)]">✅ {settings.immediateThreshold + 1}-7d</div>
                 <div className="flex-1 h-5 bg-[var(--border)] rounded overflow-hidden">
                   <div className={`h-full bg-[var(--blue)] transition-all ${settings.colorBlindMode ? 'pattern-lines' : ''}`}
                     style={{ width: `${(distribution.good / distribution.total) * 100}%` }} />
                 </div>
-                <div className="w-8 text-right text-[12px] font-semibold">{distribution.good}</div>
+                <div className="w-8 text-right text-[12px] font-semibold text-[var(--text)]">{distribution.good}</div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-24 text-[12px]">⚠️ 8-{settings.highlightThreshold - 1}d</div>
+                <div className="w-24 text-[12px] text-[var(--text)]">⚠️ 8-{settings.highlightThreshold - 1}d</div>
                 <div className="flex-1 h-5 bg-[var(--border)] rounded overflow-hidden">
                   <div className={`h-full bg-[var(--amber)] transition-all ${settings.colorBlindMode ? 'pattern-cross' : ''}`}
                     style={{ width: `${(distribution.moderate / distribution.total) * 100}%` }} />
                 </div>
-                <div className="w-8 text-right text-[12px] font-semibold">{distribution.moderate}</div>
+                <div className="w-8 text-right text-[12px] font-semibold text-[var(--text)]">{distribution.moderate}</div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-24 text-[12px]">❌ ≥{settings.highlightThreshold}d</div>
+                <div className="w-24 text-[12px] text-[var(--text)]">❌ ≥{settings.highlightThreshold}d</div>
                 <div className="flex-1 h-5 bg-[var(--border)] rounded overflow-hidden">
                   <div className={`h-full bg-[var(--rose)] transition-all ${settings.colorBlindMode ? 'pattern-zigzag' : ''}`}
                     style={{ width: `${(distribution.long / distribution.total) * 100}%` }} />
                 </div>
-                <div className="w-8 text-right text-[12px] font-semibold">{distribution.long}</div>
+                <div className="w-8 text-right text-[12px] font-semibold text-[var(--text)]">{distribution.long}</div>
               </div>
             </div>
           </div>
@@ -1016,20 +1016,20 @@ export default function Home() {
 
           {/* HRT vs TRT Comparison */}
           {settings.showComparison && (
-          <div className="p-5 border border-[var(--border)] bg-white dark:bg-[#1a1a1a] rounded-lg">
+          <div className="p-5 border border-[var(--border)] bg-white dark:bg-[#252525] rounded-lg">
             <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] font-semibold mb-3">
               HRT vs TRT
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className={`text-center p-3 bg-rose-50 dark:bg-rose-950/30 rounded ${settings.colorBlindMode ? 'border-2 border-dashed border-[var(--rose)]' : ''}`}>
+              <div className={`text-center p-3 bg-rose-50 dark:bg-rose-900/40 rounded ${settings.colorBlindMode ? 'border-2 border-dashed border-[var(--rose)]' : ''}`}>
                 <div className="text-[11px] text-[var(--rose)] font-semibold mb-1">HRT</div>
-                <div className="text-2xl font-bold tabular-nums">{typeComparison.hrt.avg.toFixed(1)}<span className="text-sm">d avg</span></div>
+                <div className="text-2xl font-bold tabular-nums text-[var(--text)]">{typeComparison.hrt.avg.toFixed(1)}<span className="text-sm text-[var(--muted)]">d avg</span></div>
                 <div className="text-[11px] text-[var(--muted)] mt-1">Best: {typeComparison.hrt.best}d</div>
                 <div className="text-[11px] text-[var(--muted)]">{typeComparison.hrt.count} locations</div>
               </div>
-              <div className={`text-center p-3 bg-blue-50 dark:bg-blue-950/30 rounded ${settings.colorBlindMode ? 'border-2 border-solid border-[var(--blue)]' : ''}`}>
+              <div className={`text-center p-3 bg-blue-50 dark:bg-blue-900/40 rounded ${settings.colorBlindMode ? 'border-2 border-solid border-[var(--blue)]' : ''}`}>
                 <div className="text-[11px] text-[var(--blue)] font-semibold mb-1">TRT</div>
-                <div className="text-2xl font-bold tabular-nums">{typeComparison.trt.avg.toFixed(1)}<span className="text-sm">d avg</span></div>
+                <div className="text-2xl font-bold tabular-nums text-[var(--text)]">{typeComparison.trt.avg.toFixed(1)}<span className="text-sm text-[var(--muted)]">d avg</span></div>
                 <div className="text-[11px] text-[var(--muted)] mt-1">Best: {typeComparison.trt.best}d</div>
                 <div className="text-[11px] text-[var(--muted)]">{typeComparison.trt.count} locations</div>
               </div>
@@ -1039,7 +1039,7 @@ export default function Home() {
 
           {/* Anomalies */}
           {settings.showAnomalies && (
-          <div className="p-5 border border-[var(--border)] bg-white dark:bg-[#1a1a1a] rounded-lg">
+          <div className="p-5 border border-[var(--border)] bg-white dark:bg-[#252525] rounded-lg">
             <div className="text-[11px] uppercase tracking-wider text-[var(--amber)] font-semibold mb-3">
               ⚠️ Significant Changes
             </div>
