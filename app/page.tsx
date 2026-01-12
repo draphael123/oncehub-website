@@ -91,6 +91,7 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<'name' | 'wait' | 'type' | 'location'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showMap, setShowMap] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings>({
     darkMode: false,
     defaultView: 'summary',
@@ -186,6 +187,7 @@ export default function Home() {
   // Fetch data
   const fetchData = useCallback(async (date?: string) => {
     setLoading(true);
+    setError(null);
     try {
       const dateParam = date ? `?date=${date}` : '';
       const [dataRes, analyticsRes, datesRes] = await Promise.all([
@@ -193,16 +195,24 @@ export default function Home() {
         fetch(`/api/analytics${dateParam}`).then(r => r.json()),
         fetch('/api/dates').then(r => r.json())
       ]);
-      if (dataRes.success) {
+      
+      if (dataRes.success && dataRes.data && dataRes.data.length > 0) {
         setData(dataRes.data);
         setLastUpdated(new Date(dataRes.lastUpdated));
+        setError(null);
+      } else {
+        setError('Unable to load data from the spreadsheet.');
       }
+      
       if (analyticsRes.success) {
         setAnalytics(analyticsRes);
       }
       if (datesRes.success && datesRes.dates) {
         setAvailableDates(datesRes.dates);
       }
+    } catch (e) {
+      console.error('Fetch error:', e);
+      setError('Failed to connect to the data source.');
     } finally {
       setLoading(false);
     }
@@ -336,7 +346,7 @@ export default function Home() {
   const Sparkline = ({ values }: { values: number[] }) => {
     if (!values || values.length === 0) return null;
     const max = Math.max(...values, 1);
-    return (
+  return (
       <div className="sparkline">
         {values.map((v, i) => (
           <div 
@@ -391,6 +401,43 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-[var(--muted)]">Loading...</div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || data.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
+        <div className="max-w-md text-center p-8">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h1 className="font-serif text-2xl mb-4 text-[var(--text)]">Something may have went wrong here!</h1>
+          <p className="text-[var(--muted)] mb-6">
+            We&apos;re having trouble loading the availability data. This could be a temporary issue with the data source.
+          </p>
+          <p className="text-[var(--text)] font-semibold mb-6">
+            Please reach out to Daniel Raphael to fix it.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <button 
+              onClick={() => fetchData()}
+              className="px-4 py-2 bg-[var(--teal)] text-white rounded hover:opacity-90 transition-opacity"
+            >
+              Try Again
+            </button>
+            <a 
+              href="mailto:daniel@fountain.net?subject=Website%20Data%20Loading%20Issue"
+              className="px-4 py-2 border border-[var(--text)] rounded hover:bg-[var(--text)] hover:text-[var(--bg)] transition-colors"
+            >
+              Contact Daniel
+            </a>
+          </div>
+          {error && (
+            <p className="text-[12px] text-[var(--muted)] mt-6">
+              Error details: {error}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
