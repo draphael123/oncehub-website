@@ -16,6 +16,7 @@ interface ScrapingResult {
 }
 
 // Generate all possible tab names for a given date
+// Covers the full scrape window (3-5 AM EST) with minute-level granularity
 function generateTabNames(date: Date): string[] {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -24,22 +25,22 @@ function generateTabNames(date: Date): string[] {
   const tabs: string[] = [];
   const baseDate = `${month}-${day}-${year}`;
   
-  // Try various time suffixes - these are the most common
-  const times = [
-    '03:17:09 EST', '03:17:09 ET',
-    '03:48:30 EST', '03:48:30 ET', 
-    '03:00:00 EST', '03:00:00 ET',
-    '08:00:00 EST', '08:00:00 ET', '08:00:00 UTC',
-    '04:00:00 EST', '04:00:00 ET',
-    '05:00:00 EST', '05:00:00 ET',
-    ''
-  ];
-  
-  for (const time of times) {
-    tabs.push(time ? `Results ${baseDate} ${time}` : `Results ${baseDate}`);
+  // Generate timestamps for the typical scrape window (3:00 AM - 5:00 AM EST)
+  // Try every 5 minutes to cover any scrape start time
+  for (let hour = 3; hour <= 5; hour++) {
+    for (let minute = 0; minute < 60; minute += 5) {
+      const h = String(hour).padStart(2, '0');
+      const m = String(minute).padStart(2, '0');
+      // Try multiple second values and timezone formats
+      for (const sec of ['00', '09', '30', '42']) {
+        tabs.push(`Results ${baseDate} ${h}:${m}:${sec} EST`);
+        tabs.push(`Results ${baseDate} ${h}:${m}:${sec} ET`);
+      }
+    }
   }
   
-  // Also try YYYY-MM-DD format
+  // Also try without timestamp and YYYY-MM-DD format
+  tabs.push(`Results ${baseDate}`);
   tabs.push(`Results ${year}-${month}-${day}`);
   
   return tabs;
