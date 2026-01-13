@@ -54,7 +54,7 @@ function parseCSV(csvText: string): string[][] {
   return rows;
 }
 
-// Generate only the most likely tab names (reduced set)
+// Generate tab names to try for a given date
 function generateTabNames(date: Date): string[] {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -63,11 +63,20 @@ function generateTabNames(date: Date): string[] {
   const tabs: string[] = [];
   const baseDate = `${month}-${day}-${year}`;
   
-  // Only try the most common times to reduce API calls
-  const commonTimes = ['03:17', '03:30', '03:45', '04:00'];
+  // Try common times - every 15 minutes from 3:00 AM to 6:00 AM EST
+  for (let hour = 3; hour <= 6; hour++) {
+    const hourStr = String(hour).padStart(2, '0');
+    for (let min = 0; min < 60; min += 15) {
+      const minStr = String(min).padStart(2, '0');
+      tabs.push(`Results ${baseDate} ${hourStr}:${minStr}:00 EST`);
+      tabs.push(`Results ${baseDate} ${hourStr}:${minStr}:09 EST`);
+    }
+  }
   
-  for (const time of commonTimes) {
-    tabs.push(`Results ${baseDate} ${time}:09 EST`);
+  // Also try :17 minutes (common in cron schedules)
+  for (let hour = 3; hour <= 6; hour++) {
+    const hourStr = String(hour).padStart(2, '0');
+    tabs.push(`Results ${baseDate} ${hourStr}:17:09 EST`);
   }
   
   tabs.push(`Results ${baseDate}`);
